@@ -62,15 +62,15 @@ def test_rebound_frontend_real_api():
             errors = []
             page.on("pageerror", lambda e: errors.append(str(e)))
             page.goto(f"http://127.0.0.1:{port}/")
-            page.locator("#state").get_by_text("REBOUND IAS15", exact=False).wait_for(timeout=15000)
+            page.wait_for_function("document.querySelector(\'#state\').textContent.includes(\'REBOUND IAS15\')", timeout=15000)
             assert "72 bodies" not in page.locator("#state").inner_text()  # Sun and Earth are separate bodies
             assert "74 bodies" in page.locator("#state").inner_text()
             page.locator("#impact").fill("-0.5")
             page.locator("#launch").click()
-            page.get_by_text("75 bodies", exact=False).wait_for(timeout=15000)
+            page.wait_for_function("document.querySelector(\'#state\').textContent.includes(\'75 bodies\')", timeout=15000)
             assert page.locator("#list details").count() == 1
             page.locator("#once").click()
-            page.get_by_text("t=1.00 days", exact=False).wait_for(timeout=15000)
+            page.wait_for_function("document.querySelector(\'#state\').textContent.includes(\'t=1.00 days\')", timeout=15000)
             page.locator("#showShell").uncheck()
             assert not page.locator("#showShell").is_checked()
             page.screenshot(path=str(artifacts / "rebound-staging.png"), full_page=True)
