@@ -15,7 +15,7 @@ def test_all_bodies_share_rebound_engine():
 def test_sun_is_not_pinned_and_total_momentum_is_balanced():
     world = CloudWorld(0)
     before = world.state()
-    assert abs(before["bodies"][0]["vx_ms"]) > 0
+    assert abs(before["bodies"][0]["vy_ms"]) > 0
     world.step(12*DAY)
     after = world.state()
     assert after["bodies"][0]["x_m"] != before["bodies"][0]["x_m"]
@@ -27,7 +27,6 @@ def test_earth_orbit_and_energy_conservation():
     start = world.state()
     r0 = math.dist([start["bodies"][0][k] for k in ("x_m","y_m","z_m")],
                    [start["bodies"][1][k] for k in ("x_m","y_m","z_m")])
-    world.step(365.25*DAY/24) if False else None
     for _ in range(13):
         world.step(28*DAY)
     end = world.state()
