@@ -43,3 +43,7 @@ def launch(payload: LaunchRequest):
 @app.post("/api/reset")
 def reset(payload: ResetRequest):
     return world.reset(payload.cloud_count)
+
+@app.get("/")
+def browser_frontend():
+    return FileResponse(Path(__file__).with_name("rebound.html"))
