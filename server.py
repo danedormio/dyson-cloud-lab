@@ -1,6 +1,7 @@
 """Minimal REBOUND service. Keep production static site unchanged until approval."""
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from typing import Any
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
@@ -47,3 +48,19 @@ def reset(payload: ResetRequest):
 @app.get("/")
 def browser_frontend():
     return FileResponse(Path(__file__).with_name("rebound.html"))
+
+class RestoreRequest(BaseModel):
+    version: int
+    time_s: float
+    bodies: list[dict[str, Any]]
+
+@app.get("/api/checkpoint")
+def checkpoint():
+    return world.checkpoint()
+
+@app.post("/api/restore")
+def restore(payload: RestoreRequest):
+    try:
+        return world.restore(payload.model_dump())
+    except (ValueError, OverflowError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
