@@ -1,0 +1,57 @@
+import math
+
+from physics import CloudWorld, AU, DAY, EARTH_KG, SUN_KG
+
+def test_all_bodies_share_rebound_engine():
+    world = CloudWorld(3)
+    state = world.state()
+    assert state["engine"] == "REBOUND IAS15"
+    assert len(state["bodies"]) == 5
+    assert state["bodies"][0]["mass_kg"] == SUN_KG
+    assert state["bodies"][1]["mass_kg"] == EARTH_KG
+    assert all(p["mass_kg"] == 1.0 for p in state["bodies"][2:])
+    assert len(world.sim.particles) == 5
+
+def test_sun_is_not_pinned_and_total_momentum_is_balanced():
+    world = CloudWorld(0)
+    before = world.state()
+    assert abs(before["bodies"][0]["vx_ms"]) > 0
+    world.step(12*DAY)
+    after = world.state()
+    assert after["bodies"][0]["x_m"] != before["bodies"][0]["x_m"]
+    vtot = [v / after["total_mass_kg"] for v in after["momentum_kg_ms"]]
+    assert math.hypot(*vtot) < 1e-8
+
+def test_earth_orbit_and_energy_conservation():
+    world = CloudWorld(0)
+    start = world.state()
+    r0 = math.dist([start["bodies"][0][k] for k in ("x_m","y_m","z_m")],
+                   [start["bodies"][1][k] for k in ("x_m","y_m","z_m")])
+    world.step(365.25*DAY/24) if False else None
+    for _ in range(13):
+        world.step(28*DAY)
+    end = world.state()
+    r1 = math.dist([end["bodies"][0][k] for k in ("x_m","y_m","z_m")],
+                   [end["bodies"][1][k] for k in ("x_m","y_m","z_m")])
+    assert abs(r1-r0)/AU < 1e-6
+    assert abs(end["energy_relative_drift"]) < 1e-8
+
+def test_launch_is_same_one_kg_body_and_signed_impact():
+    left = CloudWorld(0)
+    a = left.add_incoming(25, -0.5, 0)["bodies"][-1]
+    right = CloudWorld(0)
+    b = right.add_incoming(25, +0.5, 180)["bodies"][-1]
+    assert a["mass_kg"] == b["mass_kg"] == 1.0
+    for k in ("x_m", "y_m", "z_m", "vx_ms", "vy_ms", "vz_ms"):
+        assert math.isclose(a[k], b[k], abs_tol=1e-4)
+
+def test_endpoints():
+    from fastapi.testclient import TestClient
+    from server import app
+    c = TestClient(app)
+    assert c.get("/health").json()["engine"] == "REBOUND IAS15"
+    assert c.post("/api/reset",json={"cloud_count":1}).status_code == 200
+    s = c.post("/api/launch",json={"speed_kms":25,"impact_au":-1,"offset_degrees":0}).json()
+    assert len(s["bodies"])==4
+    assert c.post("/api/step",json={"seconds":3600}).status_code == 200
+    assert c.post("/api/step",json={"seconds":-1}).status_code == 422
