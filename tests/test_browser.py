@@ -26,3 +26,59 @@ def test_existing_site_controls_and_packet_registry():
         page.screenshot(path=str(artifacts / "browser-preview.png"), full_page=True)
         assert not errors, errors
         browser.close()
+
+def test_rebound_frontend_real_api():
+    """Drive the actual REBOUND backend + frontend together via Chromium."""
+    import subprocess
+    import sys
+    import socket
+    import time
+    import urllib.request
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "server:app",
+         "--host", "127.0.0.1", "--port", str(port)],
+        cwd=str(ROOT), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
+    )
+    try:
+        for _ in range(100):
+            if proc.poll() is not None:
+                raise AssertionError("backend exited before becoming ready: "+proc.stderr.read().decode())
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=1) as response:
+                    assert response.status == 200
+                break
+            except Exception:
+                time.sleep(0.1)
+        else:
+            raise AssertionError("backend startup timeout")
+        artifacts = ROOT / "test-artifacts"
+        artifacts.mkdir(exist_ok=True)
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True, args=["--no-sandbox"])
+            page = browser.new_page(viewport={"width": 1440, "height": 900})
+            errors = []
+            page.on("pageerror", lambda e: errors.append(str(e)))
+            page.goto(f"http://127.0.0.1:{port}/")
+            page.locator("#state").get_by_text("REBOUND IAS15", exact=False).wait_for(timeout=15000)
+            assert "72 bodies" not in page.locator("#state").inner_text()  # Sun and Earth are separate bodies
+            assert "74 bodies" in page.locator("#state").inner_text()
+            page.locator("#impact").fill("-0.5")
+            page.locator("#launch").click()
+            page.get_by_text("75 bodies", exact=False).wait_for(timeout=15000)
+            assert page.locator("#list details").count() == 1
+            page.locator("#once").click()
+            page.get_by_text("t=1.00 days", exact=False).wait_for(timeout=15000)
+            page.locator("#showShell").uncheck()
+            assert not page.locator("#showShell").is_checked()
+            page.screenshot(path=str(artifacts / "rebound-staging.png"), full_page=True)
+            assert not errors, errors
+            browser.close()
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
