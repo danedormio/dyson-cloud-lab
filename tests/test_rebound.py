@@ -54,3 +54,38 @@ def test_endpoints():
     assert len(s["bodies"])==4
     assert c.post("/api/step",json={"seconds":3600}).status_code == 200
     assert c.post("/api/step",json={"seconds":-1}).status_code == 422
+
+def test_checkpoint_round_trip_continues_orbit():
+    from fastapi.testclient import TestClient
+    from server import app
+    client = TestClient(app)
+    client.post("/api/reset", json={"cloud_count": 3})
+    client.post("/api/launch", json={"speed_kms": 25, "impact_au": -1.2, "offset_degrees": 35})
+    client.post("/api/step", json={"seconds": 86400})
+    original = client.get("/api/checkpoint").json()
+    assert len(original["bodies"]) == 6
+    assert original["time_s"] == 86400
+    assert client.post("/api/reset", json={"cloud_count": 0}).status_code == 200
+    restored = client.post("/api/restore", json=original)
+    assert restored.status_code == 200
+    value = restored.json()
+    assert math.isclose(value["time_s"], original["time_s"])
+    for old, new in zip(original["bodies"], value["bodies"]):
+        assert old["mass_kg"] == new["mass_kg"]
+        assert old["role"] == new["role"]
+        for axis in ("x_m", "y_m", "z_m", "vx_ms", "vy_ms", "vz_ms"):
+            assert math.isclose(old[axis], new[axis], rel_tol=1e-14, abs_tol=1e-10)
+    assert client.post("/api/step", json={"seconds": 3600}).status_code == 200
+
+def test_malformed_checkpoint_does_not_overwrite_running_simulation():
+    from fastapi.testclient import TestClient
+    from server import app
+    client = TestClient(app)
+    client.post("/api/reset", json={"cloud_count": 1})
+    original = client.get("/api/checkpoint").json()
+    corrupt = {**original, "bodies": [dict(x) for x in original["bodies"]]}
+    corrupt["bodies"][0]["mass_kg"] = 1.0
+    result = client.post("/api/restore", json=corrupt)
+    assert result.status_code == 422
+    current = client.get("/api/checkpoint").json()
+    assert current == original
