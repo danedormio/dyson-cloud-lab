@@ -69,6 +69,57 @@ class CloudWorld:
             self.sim.integrate(self.sim.t + seconds, exact_finish_time=1)
             return self.state()
 
+    def restore(self, checkpoint):
+        """Restore a validated checkpoint into a NEW REBOUND simulation atomically.
+
+        This preserves N-body state, not IAS15's internal adaptive-history state.
+        It is an accuracy-tested restart, not a bitwise-exact continuation.
+        """
+        bodies = checkpoint.get("bodies")
+        if checkpoint.get("version") != 1 or not isinstance(bodies, list) or not 2 <= len(bodies) <= 2002:
+            raise ValueError("invalid checkpoint version or body count")
+        try:
+            t = float(checkpoint["time_s"])
+            if not math.isfinite(t) or t < 0:
+                raise ValueError("invalid checkpoint time")
+            new = rebound.Simulation()
+            new.units = ("m", "s", "kg")
+            new.integrator = "ias15"
+            new.dt = 3600.0
+            names, roles = [], []
+            for i, b in enumerate(bodies):
+                m = float(b["mass_kg"])
+                x, y, z = (float(b[k]) for k in ("x_m", "y_m", "z_m"))
+                vx, vy, vz = (float(b[k]) for k in ("vx_ms", "vy_ms", "vz_ms"))
+                if not all(map(math.isfinite, (m, x, y, z, vx, vy, vz))) or not m > 0:
+                    raise ValueError("invalid particle values")
+                role = b["role"]
+                if role not in ("star", "planet", "cloud", "tracked"):
+                    raise ValueError("unknown particle role")
+                if i == 0 and (role != "star" or not math.isclose(m, SUN_KG, rel_tol=1e-10)):
+                    raise ValueError("Sun missing or wrong mass")
+                if i == 1 and (role != "planet" or not math.isclose(m, EARTH_KG, rel_tol=1e-10)):
+                    raise ValueError("Earth missing or wrong mass")
+                if i >= 2 and role not in ("cloud", "tracked"):
+                    raise ValueError("unsupported body role")
+                new.add(m=m, x=x, y=y, z=z, vx=vx, vy=vy, vz=vz)
+                names.append(str(b.get("name", f"Body {i}"))[:100])
+                roles.append(role)
+            new.t = t
+        except (KeyError, TypeError, OverflowError) as exc:
+            raise ValueError("malformed checkpoint") from exc
+        with self.lock:
+            self.sim = new
+            self.names, self.roles = names, roles
+            self.initial_energy = new.energy()
+            return self.state()
+
+    def checkpoint(self):
+        with self.lock:
+            return {"version": 1, "time_s": float(self.sim.t),
+                    "bodies": self.state()["bodies"],
+                    "note": "State restart. IAS15 internal adaptive history is not preserved."}
+
     def state(self):
         with self.lock:
             particles = [
