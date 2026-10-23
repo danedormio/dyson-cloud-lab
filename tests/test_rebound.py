@@ -86,6 +86,9 @@ def test_malformed_checkpoint_does_not_overwrite_running_simulation():
     corrupt = {**original, "bodies": [dict(x) for x in original["bodies"]]}
     corrupt["bodies"][0]["mass_kg"] = 1.0
     result = client.post("/api/restore", json=corrupt)
-    assert result.status_code == 422
+    assert result.status_code == 403  # tampering fails ownership/authenticity validation
     current = client.get("/api/checkpoint").json()
-    assert current == original
+    # Export expiry and signature refresh, but every physical and solver field
+    # must remain identical after the rejected restore.
+    assert {k: v for k, v in current.items() if k not in ("signature", "expires_at")} == {
+        k: v for k, v in original.items() if k not in ("signature", "expires_at")}

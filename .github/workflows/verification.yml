@@ -1,9 +1,9 @@
 name: Physics and browser verification
 on:
   push:
-    branches: [main, "foundation/**"]
+    branches: [main, "foundation/**", "feat/issue-3-recoverable-sessions"]
   pull_request:
-    branches: [main]
+    branches: [main, "foundation/rebound-ci"]
   workflow_dispatch:
 
 permissions:
@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install -r requirements.txt
-      - run: python -m pytest tests/test_rebound.py -v
+      - run: python -m pytest tests/test_rebound.py tests/test_sessions.py -v
 
   browser:
     name: Chromium browser interactions

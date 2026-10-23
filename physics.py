@@ -106,17 +106,23 @@ class CloudWorld:
                 names.append(str(b.get("name", f"Body {i}"))[:100])
                 roles.append(role)
             new.t = t
+            baseline = float(checkpoint.get("initial_energy_j", new.energy()))
+            if not math.isfinite(baseline):
+                raise ValueError("invalid energy baseline")
         except (KeyError, TypeError, OverflowError) as exc:
             raise ValueError("malformed checkpoint") from exc
         with self.lock:
             self.sim = new
             self.names, self.roles = names, roles
-            self.initial_energy = new.energy()
+            self.initial_energy = baseline
             return self.state()
 
     def checkpoint(self):
         with self.lock:
             return {"version": 1, "time_s": float(self.sim.t),
+                    "initial_energy_j": self.initial_energy,
+                    "solver": {"name": "ias15", "rebound_version": rebound.__version__,
+                               "units": ["m", "s", "kg"], "dt_s": 3600.0},
                     "bodies": self.state()["bodies"],
                     "note": "State restart. IAS15 internal adaptive history is not preserved."}
 
