@@ -78,6 +78,16 @@ class ResetRequest(InputModel):
     cloud_count: int = Field(default=72, ge=0, le=MAX_BODIES - 2)
 
 
+class SessionRequest(InputModel):
+    recovery_token: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{43}$")
+    has_backup: bool = False
+
+
+class RecoveryRequest(InputModel):
+    credential: str = Field(pattern=r"^[A-Za-z0-9_-]{43}$")
+    capsule: dict
+
+
 def create_app(store=None):
     app = FastAPI(title="Dyson Cloud Laboratory — REBOUND sessions")
     app.state.sessions = store or SessionStore(os.environ.get(
@@ -90,9 +100,9 @@ def create_app(store=None):
         # through error serialization (non-finite JSON otherwise yields a 500).
         return JSONResponse({"detail": "Invalid request fields or JSON"}, 422)
 
-    def run(request, response, operation):
+    def run(request, response, operation, **recovery):
         try:
-            result, token, _ = app.state.sessions.run(request.cookies.get(COOKIE_NAME), operation)
+            result, token, _ = app.state.sessions.run(request.cookies.get(COOKIE_NAME), operation, **recovery)
         except SessionError as exc:
             raise HTTPException(exc.status, exc.message) from exc
         except (ValueError, OverflowError, RecursionError) as exc:
@@ -110,15 +120,23 @@ def create_app(store=None):
                 db.execute("SELECT count(*) FROM sessions").fetchone()
         except sqlite3.Error as exc:
             raise HTTPException(503, "Session storage unavailable") from exc
-        return {"status": "ok", "engine": "REBOUND IAS15"}
+        return {"status": "ok", "engine": "REBOUND IAS15",
+                "recovery_available": bool(app.state.sessions.recovery_key)}
 
     @app.get("/api/state")
     def state(request: Request, response: Response):
         return run(request, response, lambda w, *_: w.state())
 
     @app.post("/api/session")
-    def bootstrap(request: Request, response: Response):
-        return run(request, response, lambda w, *_: w.state())
+    def bootstrap(payload: SessionRequest, request: Request, response: Response):
+        if payload.has_backup and not request.cookies.get(COOKIE_NAME):
+            raise HTTPException(401, "Resume the saved browser backup")
+        return run(request, response, lambda w, *_: w.state(), recovery_token=payload.recovery_token)
+
+    @app.post("/api/recover")
+    def recover(payload: RecoveryRequest, request: Request, response: Response):
+        return run(request, response, lambda w, *_: w.state(),
+                   recovery_token=payload.credential, recovery_capsule=payload.capsule)
 
     @app.delete("/api/session")
     def forget(response: Response):
@@ -154,6 +172,11 @@ def create_app(store=None):
     @app.get("/")
     def browser_frontend():
         return FileResponse(Path(__file__).with_name("rebound.html"))
+
+    @app.get("/recovery.js")
+    def recovery_client():
+        return FileResponse(Path(__file__).with_name("recovery.js"), media_type="text/javascript",
+                            headers={"Cache-Control": "no-cache"})
 
     return app
 

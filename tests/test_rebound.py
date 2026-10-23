@@ -92,3 +92,44 @@ def test_malformed_checkpoint_does_not_overwrite_running_simulation():
     # must remain identical after the rejected restore.
     assert {k: v for k, v in current.items() if k not in ("signature", "expires_at")} == {
         k: v for k, v in original.items() if k not in ("signature", "expires_at")}
+
+
+def test_all_supported_populations_have_distinct_finite_initial_conditions():
+    for count in range(201):
+        world = CloudWorld(count)
+        s = world.state()
+        assert len(s['bodies']) == count + 2
+        assert math.isfinite(s['gravitational_energy_j'])
+        assert all(math.isfinite(b[k]) for b in s['bodies']
+                   for k in ('x_m','y_m','z_m','vx_ms','vy_ms','vz_ms','mass_kg'))
+        locations = {(b['x_m'],b['y_m'],b['z_m']) for b in s['bodies']}
+        assert len(locations) == count + 2
+        assert math.hypot(*s['momentum_kg_ms']) / s['total_mass_kg'] < 1e-8
+    assert CloudWorld(8).checkpoint()['scenario_version'] == 2
+
+
+def test_eight_cloud_bodies_conserve_over_364_days():
+    world = CloudWorld(8)
+    initial = world.state()
+    def angular(s):
+        return math.fsum(b['mass_kg']*(b['x_m']*b['vy_ms']-b['y_m']*b['vx_ms']) for b in s['bodies'])
+    for _ in range(13):
+        world.step(28*DAY)
+    final = world.state()
+    assert math.isfinite(final['gravitational_energy_j'])
+    assert abs(final['energy_relative_drift']) < 1e-8
+    assert abs(angular(final)-angular(initial))/abs(angular(initial)) < 1e-8
+    assert math.hypot(*final['momentum_kg_ms'])/final['total_mass_kg'] < 1e-8
+    assert final['total_mass_kg'] == initial['total_mass_kg']
+    print(f'eight-cloud 364-day energy drift={final["energy_relative_drift"]:.3e}')
+
+
+def test_legacy_checkpoint_keeps_its_original_coordinates():
+    original = CloudWorld(3)
+    original.step(DAY)
+    legacy = original.checkpoint()
+    legacy.pop('scenario_version')
+    restored = CloudWorld(8)
+    restored.restore(legacy)
+    assert restored.checkpoint()['scenario_version'] == 1
+    assert restored.state() == original.state()

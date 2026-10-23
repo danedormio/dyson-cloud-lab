@@ -1,6 +1,7 @@
 """Isolate persistent data and support both CI Chromium and installed Chromium."""
 import os
 from pathlib import Path
+import secrets
 import socket
 import subprocess
 import sys
@@ -28,9 +29,10 @@ class Backend:
         self.db = tmp_path / "browser-sessions.sqlite3"
         self.logs = tmp_path / "backend.log"
         self.proc = None
+        self.recovery_key = secrets.token_hex(32)
 
     def start(self):
-        env = {**os.environ, "DYSON_SESSION_DB": str(self.db)}
+        env = {**os.environ, "DYSON_SESSION_DB": str(self.db), "DYSON_RECOVERY_KEY": self.recovery_key or ""}
         self.log = self.logs.open("ab")
         self.proc = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "server:app", "--host", "127.0.0.1", "--port", str(self.port)],

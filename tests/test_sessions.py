@@ -217,8 +217,12 @@ def test_unavailable_database_connection_is_retryable(tmp_path, monkeypatch):
     assert a.get('/api/state').json() == expected
 
 
-def test_preexisting_coincident_scenario_cannot_corrupt_saved_world(tmp_path):
+def test_eight_cloud_reset_and_integration_are_valid(tmp_path):
     _, a, _ = client_pair(tmp_path)
-    expected = a.get('/api/state').json()
-    assert a.post('/api/reset', json={'cloud_count':8}).status_code == 422
-    assert a.get('/api/state').json() == expected
+    result = a.post('/api/reset', json={'cloud_count':8})
+    assert result.status_code == 200
+    assert len(result.json()['bodies']) == 10
+    stepped = a.post('/api/step', json={'seconds':86400})
+    assert stepped.status_code == 200
+    assert math.isfinite(stepped.json()['gravitational_energy_j'])
+    assert abs(stepped.json()['energy_relative_drift']) < 1e-8

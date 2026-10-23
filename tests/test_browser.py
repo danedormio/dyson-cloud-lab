@@ -117,7 +117,10 @@ def test_two_private_universes_ui_checkpoint_and_crash_recovery(chromium, backen
         restore_checkpoint(page, raw)
         expect(page.locator('#state')).to_contain_text('75 bodies')
         expect(page.locator('#state')).to_contain_text('t=1.00 days')
-        assert state(context, backend.url) == wanted
+        restored = state(context, backend.url)
+        assert {k:v for k,v in restored.items() if k != 'recovery'} == {k:v for k,v in wanted.items() if k != 'recovery'}
+        assert restored['recovery']['checkpoint'] == wanted['recovery']['checkpoint']
+        assert restored['recovery']['revision'] > wanted['recovery']['revision']
         assert state(other, backend.url) == untouched
     # Deliberately diverge the worlds before a real process kill.
     pa.locator('#once').click()
@@ -149,26 +152,139 @@ def test_two_private_universes_ui_checkpoint_and_crash_recovery(chromium, backen
     b.close()
 
 
-def test_missing_session_requires_explicit_new_universe(chromium, backend):
+def test_missing_session_recovers_browser_backup(chromium, backend):
     import sqlite3
     a, b = chromium.new_context(), chromium.new_context()
     pa, pb = a.new_page(), b.new_page()
     for page in (pa, pb):
         page.goto(backend.url)
         expect(page.locator('#wake')).to_be_hidden(timeout=15000)
-    expected_b = state(b, backend.url)
+    pa.locator('#once').click()
+    expect(pa.locator('#state')).to_contain_text('t=1.00 days')
+    expected_a, expected_b = state(a, backend.url), state(b, backend.url)
     old_cookie = a.cookies()[0]['value']
     import hashlib
     with sqlite3.connect(backend.db) as db:
         db.execute('DELETE FROM sessions WHERE id=?', (hashlib.sha256(old_cookie.encode()).hexdigest(),))
     pa.reload()
-    expect(pa.locator('#newSession')).to_be_visible(timeout=15000)
-    expect(pa.locator('#wakeMessage')).to_contain_text('401')
-    assert state(b, backend.url) == expected_b
-    pa.locator('#newSession').click()
     expect(pa.locator('#wake')).to_be_hidden(timeout=15000)
-    expect(pa.locator('#state')).to_contain_text('74 bodies')
+    expect(pa.locator('#state')).to_contain_text('t=1.00 days')
     assert a.cookies()[0]['value'] != old_cookie
+    assert state(a, backend.url) == expected_a
     assert state(b, backend.url) == expected_b
     a.close()
     b.close()
+
+
+def test_full_redeploy_browser_backups_and_portable_private_file(chromium, backend):
+    a, b = chromium.new_context(), chromium.new_context()
+    pa, pb = a.new_page(), b.new_page()
+    errors = []
+    for page in (pa, pb):
+        page.on('pageerror', lambda e: errors.append(str(e)))
+        page.goto(backend.url)
+        expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+        expect(page.locator('#backupStatus')).to_contain_text('Recovery saved on this browser')
+    pa.locator('#count').fill('8')
+    pa.locator('#reset').click()
+    expect(pa.locator('#state')).to_contain_text('10 bodies')
+    pa.locator('#launch').click()
+    expect(pa.locator('#state')).to_contain_text('11 bodies')
+    for page in (pa, pb):
+        page.locator('#once').click()
+        expect(page.locator('#state')).to_contain_text('t=1.00 days')
+        expect(page.locator('#backupStatus')).to_contain_text('Recovery saved on this browser')
+    pa.locator('#once').click()
+    expect(pa.locator('#state')).to_contain_text('t=2.00 days')
+    # Wait for the client durability acknowledgement, not just rendered state.
+    pa.wait_for_function('!busy')
+    expected_a, expected_b = state(a, backend.url), state(b, backend.url)
+    with pa.expect_download() as download:
+        pa.locator('#backup').click()
+    private_file = Path(download.value.path()).read_bytes()
+    backend.stop(crash=True)
+    backend.db.unlink() # No SQLite file is retained on the replacement host.
+    backend.start()
+    a.clear_cookies() # IndexedDB still proves ownership even without a cookie.
+    for page in (pa, pb):
+        page.reload()
+        expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+        expect(page.locator('#backupStatus')).to_contain_text('Recovery saved on this browser')
+    assert state(a, backend.url) == expected_a
+    assert state(b, backend.url) == expected_b
+    expect(pa.locator('#count')).to_have_value('8')
+    ARTIFACTS.mkdir(exist_ok=True)
+    pa.screenshot(path=str(ARTIFACTS/'redeploy-eight-cloud-recovered.png'), full_page=True)
+    # Lose host storage a second time: only the downloaded file can restore
+    # A in the brand-new browser; B independently uses its browser backup.
+    backend.stop(crash=True)
+    backend.db.unlink()
+    backend.start()
+    pb.reload()
+    expect(pb.locator('#wake')).to_be_hidden(timeout=15000)
+    # An actual downloaded private backup also works in a clean browser.
+    imported = chromium.new_context()
+    page = imported.new_page()
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    restore_checkpoint(page, private_file)
+    expect(page.locator('#state')).to_contain_text('11 bodies')
+    expect(page.locator('#state')).to_contain_text('t=2.00 days')
+    page.wait_for_function('!busy')
+    assert state(imported, backend.url) == expected_a
+    assert state(b, backend.url) == expected_b
+    page.locator('#once').click()
+    expect(page.locator('#state')).to_contain_text('t=3.00 days')
+    assert state(b, backend.url) == expected_b
+    assert not errors, errors
+    for context in (a,b,imported):
+        context.close()
+
+
+def test_unconfigured_key_is_visible_and_does_not_promise_redeploy_recovery(chromium, backend):
+    backend.stop()
+    backend.recovery_key = None
+    backend.start()
+    page = chromium.new_page()
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    expect(page.locator('#backupStatus')).to_contain_text('Redeploy recovery unavailable')
+    page.close()
+
+
+def test_late_response_cannot_replace_newer_browser_backup(chromium, backend):
+    page = chromium.new_page()
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    older = page.evaluate('snapshot.recovery')
+    page.locator('#once').click()
+    expect(page.locator('#state')).to_contain_text('t=1.00 days')
+    page.wait_for_function('!busy')
+    page.evaluate('capsule => RecoveryBackup.accept(capsule)', older)
+    assert page.evaluate('(async()=> (await RecoveryBackup.refresh()).capsule.checkpoint.time_s)()') == 86400
+    page.close()
+
+
+def test_browser_storage_failure_is_visible_and_retry_does_not_repeat_step(chromium, backend):
+    page = chromium.new_page()
+    errors = []
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    page.evaluate("""() => {
+      window.realPut = IDBObjectStore.prototype.put;
+      IDBObjectStore.prototype.put = function() {throw new DOMException('simulated storage full','QuotaExceededError')};
+    }""")
+    page.locator('#once').click()
+    expect(page.locator('#backupStatus')).to_contain_text('NOT saved')
+    expect(page.locator('#wake')).to_be_visible()
+    assert page.evaluate('(async()=> (await RecoveryBackup.refresh()).capsule.checkpoint.time_s)()') == 0
+    page.evaluate('() => { IDBObjectStore.prototype.put = window.realPut; }')
+    page.locator('#retryWake').click()
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    expect(page.locator('#state')).to_contain_text('t=1.00 days')
+    expect(page.locator('#backupStatus')).to_contain_text('Recovery saved on this browser')
+    assert page.evaluate('(async()=> (await RecoveryBackup.refresh()).capsule.checkpoint.time_s)()') == 86400
+    assert not errors, errors
+    page.close()

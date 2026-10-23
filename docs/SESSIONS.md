@@ -1,150 +1,174 @@
-# Independent REBOUND sessions (Issue #3)
+# Independent, recoverable REBOUND sessions (Issue #3 / PR #4)
 
-## Run and storage contract
+## Run and configure
 
-Start from the repository root:
+From the checkout root:
 
 ```sh
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements.txt
-# Optional: point at an EXISTING persistent local filesystem you administer.
-# export DYSON_SESSION_DB=/path/to/persistent/sessions.sqlite3
+# Set DYSON_RECOVERY_KEY securely in the hosting service's runtime environment.
+# Optional: DYSON_SESSION_DB=/existing/persistent/local/path/sessions.sqlite3
 python -m uvicorn server:app --host 127.0.0.1 --port 8000
 ```
 
-The default database is `.session-data/sessions.sqlite3`, ignored by Git.
-No external database, account, paid service, production routing, or deployment
-configuration is introduced. Newly created database directories/files use
-0700/0600 permissions. The file contains private worlds and signing keys:
-do not commit, publish, log or serve it with a directory-listing static server.
-Use the FastAPI server for this branch.
+**One operator action is required before enabling redeploy recovery:** generate
+32 random bytes as 64 hexadecimal characters and save that value securely as
+`DYSON_RECOVERY_KEY` in the hosting service's environment settings. Keep a secure
+copy and keep the same value across shutdowns, redeploys and replacement hosts.
+Use a trusted local secret generator; do not paste the value into chat, source,
+CI logs or a committed `.env` file. This must be a real runtime secret, not a
+proxy placeholder. The application rejects malformed configured keys.
 
-A successful operation commits its complete checkpoint before responding.
-SQLite transactions serialize operations, including requests from different
-workers using the **same local database file**, preventing lost updates and
-cross-owner changes. A failed operation or failed commit rolls back; the last
-committed checkpoint remains authoritative. Health checks verify database
-readability; a write failure returns 503 rather than acknowledging a mutation.
-No simulation steps run in the background. Wall-clock downtime never becomes
-simulated elapsed time. The browser pauses after a failed/uncertain action,
-then reconnects to read committed state, without replaying the action.
+No paid service, external database, new account, public website, production
+routing or Render deployment configuration was introduced or changed. The
+owner must approve any eventual hosting configuration/deployment separately.
+When the key is absent the ordinary SQLite workflow still works, but the UI
+explicitly says that redeploy recovery is unavailable; it never promises it.
 
-Process termination/recreation is recoverable **only if the database file
-survives and the browser retains its cookie**. Render's ephemeral filesystem
-may survive sleep/process restarts but is NOT a durable-volume guarantee:
-redeploys, filesystem loss, cookie deletion, or expiry can lose access. No
-Render configuration is changed or persistent disk purchased here. An operator
-must provide persistent storage before promising recovery across host loss.
-Separate replicas without a shared local SQLite file are unsupported; network
-filesystems and horizontally distributed databases are outside this task.
+## How free recovery works
 
-## Ownership and checkpoint policy
+1. SQLite remains the live registry. Each successful operation commits the full
+   world before its response. Transactions serialize updates across processes
+   sharing the same local database. Failed writes return 503 and roll back.
+2. The browser creates a separate random 256-bit recovery credential and keeps
+   it in IndexedDB. The server binds its hash to the cookie-authenticated world.
+   Each world response includes a recovery capsule authenticated with the
+   deployment key: complete state, original energy baseline, scenario/solver
+   metadata, owner hash, revision and expiry.
+3. The browser transactionally saves that capsule after every successful action.
+   “Recovery saved on this browser” appears only after IndexedDB commits it.
+   Late responses cannot replace a higher-revision backup. If saving fails,
+   the browser pauses and visibly reports **NOT saved**. Retry reads committed
+   server state and does not repeat an uncertain step.
+4. A stale/missing cookie or erased server session triggers `/api/recover` with
+   the capsule and recovery credential. The server checks provenance, ownership,
+   expiry and bounds, then reconstructs a private world and issues a new cookie.
+   A surviving newer server row wins over an older client backup. Other owners'
+   worlds are not overwritten. Nothing advances while the server is down.
+5. **Private recovery backup** downloads both the capsule and recovery credential.
+   Store this file somewhere safe outside the hosting service and browser.
+   **Restore checkpoint**, or **Open private recovery backup** on the connection
+   screen, imports it on a clean browser or another origin using the same server
+   deployment key. Possession of this file grants access to that simulation.
 
-- A 256-bit random bearer cookie authenticates one world. It is HttpOnly,
-  SameSite=Strict, host-only, scoped to `/api`, and Secure when served over HTTPS.
-  Production use requires HTTPS and correctly trusted proxy scheme headers.
-  Database lookup uses the SHA-256 hash, never a user-chosen object ID.
-- `POST /api/session` bootstraps/resumes a session. Existing endpoint paths and
-  payloads remain usable with a cookie jar; a missing cookie lazily creates a
-  private session for older API clients. Unknown/malformed/stale cookies return
-  401; they never select another world or silently overwrite a saved world.
-- `DELETE /api/session` explicitly forgets the browser credential. The old row
-  expires normally. The UI offers this only after a 401; it cannot recover an
-  expired or lost database. Tabs sharing a browser context share a session;
-  independent browser contexts have separate sessions.
-- `GET /api/checkpoint` exports a version-1 state plus owner hash, expiry and
-  HMAC-SHA256 signature using a per-session key kept exclusively in the database.
-  `POST /api/restore` accepts only authentic, unexpired checkpoints for the
-  currently authenticated owner. Reset does not change ownership or signing key.
-  Exports are deliberately not portable to another browser/session.
-- HMAC canonicalization normalizes JSON numbers to IEEE doubles so a legitimate
-  browser JSON.parse/stringify round trip does not invalidate the signature.
-  No arbitrary unsigned checkpoint import or public dataset-submission API is
-  enabled. Legacy unsigned exports/localStorage caches are not automatically
-  imported: they have no ownership proof. Scientific/offline `CloudWorld.restore`
-  remains available for trusted local workflows.
-- No CORS grants are added. Cross-site browser API requests and mismatched Origin
-  mutations are rejected. Mutations require JSON. Responses are not cacheable;
-  validation errors do not echo uploaded data or credentials. TLS, checksums and
-  package verification remain enabled throughout installation.
+This handles complete server database loss, not just restart of a Python process.
+A fresh server needs only the application, the unchanged deployment key, and a
+client's browser backup or private recovery file. SQLite's default path is
+`.session-data/sessions.sqlite3`; it is not treated as durable on free Render.
+The browser backup/file is the durable copy outside that ephemeral host.
+Existing SQLite databases migrate additively and atomically across workers.
 
-This is capability ownership, not accounts: possession of a stolen cookie gives
-access, and there is no account-based recovery or sharing. Protect the database
-and cookies; HMAC does not encrypt checkpoint contents. Local administrators
-with database access are trusted. User-chosen session IDs, sharing links,
-passwords, cross-device transfers, and hostile public-scale traffic are out of
-scope.
+## Guarantees and limitations
 
-## Explicit bounds
+- Recovery is to the latest **acknowledged browser backup**, or to the newer live
+  SQLite state when it survives. A server may commit an action just before a
+  connection loss/browser closure prevents the backup write. If the server disk
+  is then erased, that unacknowledged action can be lost. It is not replayed.
+- Browser storage can be cleared, evicted, unavailable in private browsing, or
+  lost with the device. Keep a downloaded private recovery file independently.
+  Clearing both browser data and every file backup loses the simulation.
+- Losing/changing `DYSON_RECOVERY_KEY` prevents verification of old backups.
+  It is not generated afresh at startup. Key rotation with old-key verification
+  and account-based recovery are not implemented. Back up the key securely.
+- Recovery capsules expire after 365 days. Successful mutations and periodic
+  reads renew the browser copy; download an updated file before an old file
+  expires. Ordinary **Save checkpoint** files remain short-lived, session-bound
+  undo checkpoints, not the portable private recovery files.
+- Importing a private recovery file rotates the session cookie. Another browser
+  using the same recovery owner may need to reconnect. Independent owners stay
+  isolated. This is capability ownership, not account login or collaborative
+  synchronization. Revocation of previously downloaded private files is absent.
+- Integrity/ownership are authenticated, not encrypted. Keep private files,
+  IndexedDB data, cookies and the database private. A stolen credential or file
+  can grant access. Local administrators and the hosting secret store are trusted.
+- Use HTTPS and correctly trusted proxy scheme headers. IndexedDB and Web Crypto
+  require a modern browser/secure origin; localhost is supported for development.
+- Multiple workers must share the same local SQLite file. Separate distributed
+  replicas, network filesystems, public-scale ingress protection and a wall-time
+  CPU sandbox are outside this bounded prototype. Anonymous session creation can
+  exhaust capacity; a public release still needs ingress abuse controls.
 
-| Resource | Default policy |
+The implementation and tests do not constitute a live Render deployment test.
+No paid durability or browser-vendor durability guarantee is claimed.
+
+## Ownership, API compatibility and bounds
+
+The normal cookie is 256-bit random, host-only, HttpOnly, SameSite=Strict,
+scoped to `/api`, and Secure on HTTPS. Lookups store only its SHA-256 hash.
+`POST /api/session` accepts an optional recovery credential. An existing browser
+backup plus missing cookie cannot silently bootstrap and overwrite a new world.
+Older API clients can continue using existing endpoints and a cookie jar.
+`DELETE /api/session` forgets the cookie; old unused rows expire normally.
+
+`GET /api/checkpoint` / `POST /api/restore` retain the short-lived per-session
+signed checkpoint flow. `/api/recover` instead requires a deployment-signed
+capsule **and** its independent recovery credential. A copied capsule or ordinary
+checkpoint without that credential cannot recover another owner's world.
+The portable private backup deliberately includes the credential for owner-
+initiated transfer. Unsigned/untrusted worlds and public dataset submissions
+remain disallowed. Trusted offline `CloudWorld.restore` remains available.
+
+JSON signatures normalize numerical values across Python/browser reserialization.
+Cross-site API requests and mismatched-Origin mutations are rejected; mutations
+require JSON. Bounded uploads are checked before parsing, including chunked
+requests. API responses are not cacheable and validation errors do not echo
+credentials or uploaded worlds.
+
+| Resource | Policy |
 | --- | --- |
-| Active sessions | 32; additional creation returns 429 |
-| Inactivity lifetime | 24 hours, refreshed on successful API requests |
-| Export lifetime | 24 hours from export; does not extend on later requests |
-| Bodies | 202 total, including Sun/Earth and incoming bodies; reset allows 0–200 cloud bodies |
-| Checkpoint/request body | 262,144 bytes, enforced before parsing even for chunked uploads |
-| Successful session requests | 600 per fixed 60-second window, persisted across workers/restarts |
-| One step | Positive finite seconds, at most 30 simulated days |
-| Storage contention | 10-second SQLite lock timeout; failure returns 503 |
+| Active sessions | 32; additional creation/recovery returns 429 |
+| SQLite inactivity expiry | 24 hours, refreshed on successful requests |
+| Ordinary checkpoint expiry | 24 hours from export |
+| Recovery capsule expiry | 365 days from issue/renewal |
+| Bodies | 202 total, including Sun/Earth; reset allows 0–200 cloud bodies |
+| Request/checkpoint size | 262,144 bytes |
+| Successful requests | 600 per owner per fixed 60-second window; recovery preserves the live quota |
+| Step | Finite positive seconds, at most 30 simulated days |
+| SQLite contention timeout | 10 seconds; failure returns 503 |
 
-Expiry cleanup happens transactionally on requests, with no always-on bot.
-Failed operations do not extend expiry or consume the successful-request quota.
-All integration is serialized at database scope. The small bounds favor safety
-and consistency over throughput; this is not a distributed multiplayer service.
-Anonymous session creation can exhaust the finite capacity; a public release
-needs ingress connection/rate/body-timeout controls, monitoring and abuse
-policy. A wall-time CPU sandbox and per-account/IP quotas are not provided here.
+Expiry cleanup happens on requests. Failed operations do not extend expiry or
+consume the successful-request quota. Restoring onto a genuinely empty database
+starts a new quota window because that host has no retained request history.
 
-## Physics and reproducibility
+## Physics and initial conditions
 
-The force model, massive moving Sun, SI units, COM initial frame, ideal circular
-Earth initial condition, and IAS15 integrator are unchanged. Epoch t=0 is a
-synthetic scenario, not an observed ephemeris. Seeding is deterministic (no RNG).
-Checkpoints retain every mass, position, velocity, role, name, time, solver/version
-metadata, and original energy baseline. Persisting that baseline prevents each
-restart from disguising accumulated drift. Launch adds a new ordinary massive
-1-kg initial-condition body; conservation comparisons apply between explicit
-launch/reset/restore events, not across the addition/removal of matter.
+SI units, synthetic t=0 epoch, common COM frame, massive moving Sun, mutual
+Newtonian gravity, IAS15 default epsilon 1e-9 and initial dt=3600 seconds remain
+unchanged. No trajectory clamping, softening, new forces, coupling or capture
+was added. Conservation comparisons apply between explicit launches/resets/
+restores, not across addition/removal of matter.
 
-Storage is **state-only**, not a REBOUND Simulationarchive with IAS15 internal
-adaptive history. Each API operation reconstructs a new solver in SI units,
-IAS15 default accuracy (epsilon 1e-9), and initial dt=3600 seconds. Subsequent
-integration is tested for accuracy, not bitwise trajectory equivalence to an
-uninterrupted solver. Full integrator-history restoration might improve exact
-repeatability, but introduces format/version/storage concerns and is deferred.
-Rerun numerical continuation tests after any solver/version change.
+**Scenario version 2 fixes the eight-cloud-body initialization:** cloud phases
+use `(i + 0.5) * golden_angle` instead of `i * golden_angle`. Previously, for
+8 clouds, the first radius was exactly 1 AU and its phase exactly zero: the
+particle coincided with Earth, giving infinite potential energy. The half-step
+phase offset avoids that seed degeneracy for all 0–200 supported populations.
+Radii/masses/velocity rules are unchanged. Existing checkpoints retain their
+actual coordinates; missing scenario version is interpreted as legacy version 1.
 
-The 364-day Sun/Earth + 3 cloud-body comparison against uninterrupted integration
-requires maximum position error <1e-8 AU, velocity error <1e-4 m/s, relative energy
-and angular-momentum drift <1e-8, and total momentum/system-mass <1e-8 m/s.
-No assertions or original conservation tolerances were relaxed.
+Both SQLite and browser recovery are state-only, not full IAS15 adaptive-history
+archives. Positions, velocities, masses, labels, time and original energy
+baseline survive. Repeated continuation is tested against uninterrupted
+integration, not claimed bitwise-identical. Tests require position differences
+<1e-8 AU, velocity differences <1e-4 m/s, relative energy/angular-momentum drift
+<1e-8 and momentum divided by total mass <1e-8 m/s over 364 simulated days.
+Rerun continuation tests after changing the solver/version.
 
-Known pre-existing scenario defect: `CloudWorld(8)` seeds its first cloud body
-exactly at Earth's position, producing non-finite gravitational energy. This
-change rejects that reset atomically (422) and retains the prior world instead
-of persisting invalid data. Fixing that initial-condition generator is a separate
-physics change; default 72 and tested 0/1/3/199/200-body scenarios are supported.
-Coupling, capture, Moon/other planets and observed ephemerides remain out of scope.
-
-## Reproduce verification
+## Verification
 
 ```sh
-python -m pytest tests/test_rebound.py tests/test_sessions.py -v -s
+python -m pytest tests/test_rebound.py tests/test_sessions.py tests/test_recovery.py -v -s
 python -m playwright install chromium
 python -m pytest tests/test_browser.py -v
-```
-
-Where browser downloads are prohibited but Chromium is installed:
-
-```sh
+# Installed-browser alternative when downloads are blocked:
 DYSON_CHROMIUM_EXECUTABLE=/usr/bin/chromium python -m pytest tests/test_browser.py -v
 ```
 
-Tests isolate databases in temporary directories and start actual backend
-subprocesses. Browser tests use independent contexts, actual UI checkpoint
-download/upload, cross-owner rejection, a SIGKILL, reconnect/reload and further
-isolated mutation. They save screenshots under `test-artifacts/`. CI uploads
-that directory and runs on PRs targeting `foundation/rebound-ci` as well as main.
-See [the measured evidence](ISSUE-3-EVIDENCE.md).
+Tests use temporary databases, real REBOUND, backend subprocesses and Chromium.
+They cover all initial populations, conservation, migration, ownership, limits,
+process kill, full database deletion, cookie loss, private-file import in a
+clean browser, late responses and browser storage failure. Screenshots are in
+`test-artifacts/` and uploaded by CI. Test deployment keys are random, ephemeral,
+never production secrets. See [measured evidence](ISSUE-3-EVIDENCE.md).
