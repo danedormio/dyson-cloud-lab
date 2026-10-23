@@ -28,6 +28,7 @@ class CloudWorld:
             self.sim.units = ("m", "s", "kg")
             self.sim.integrator = "ias15"
             self.sim.dt = 3600.0
+            self.scenario_version = 2
             self.names = ["Sun", "Earth"]
             self.roles = ["star", "planet"]
             self.sim.add(m=SUN_KG, x=0, y=0, z=0)
@@ -36,7 +37,9 @@ class CloudWorld:
             for i in range(int(cloud_count)):
                 # Deterministic, non-coincident orbital phases and radii.
                 radius = (0.8 + 3.2 * (i + 0.5) / max(1, cloud_count)) * AU
-                phase = i * 2.399963229728653
+                # Half a golden-angle phase step avoids the Earth-at-(AU,0)
+                # coincidence for cloud_count=8, without changing any forces.
+                phase = (i + 0.5) * 2.399963229728653
                 speed = math.sqrt(self.sim.G * SUN_KG / radius)
                 self.sim.add(m=1.0,
                              x=radius * math.cos(phase),
@@ -106,17 +109,25 @@ class CloudWorld:
                 names.append(str(b.get("name", f"Body {i}"))[:100])
                 roles.append(role)
             new.t = t
+            baseline = float(checkpoint.get("initial_energy_j", new.energy()))
+            if not math.isfinite(baseline):
+                raise ValueError("invalid energy baseline")
         except (KeyError, TypeError, OverflowError) as exc:
             raise ValueError("malformed checkpoint") from exc
         with self.lock:
             self.sim = new
             self.names, self.roles = names, roles
-            self.initial_energy = new.energy()
+            self.initial_energy = baseline
+            self.scenario_version = checkpoint.get("scenario_version", 1)
             return self.state()
 
     def checkpoint(self):
         with self.lock:
             return {"version": 1, "time_s": float(self.sim.t),
+                    "scenario_version": self.scenario_version,
+                    "initial_energy_j": self.initial_energy,
+                    "solver": {"name": "ias15", "rebound_version": rebound.__version__,
+                               "units": ["m", "s", "kg"], "dt_s": 3600.0},
                     "bodies": self.state()["bodies"],
                     "note": "State restart. IAS15 internal adaptive history is not preserved."}
 

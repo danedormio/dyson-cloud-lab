@@ -17,12 +17,14 @@ python -m pip install -r requirements.txt
 uvicorn server:app --host 0.0.0.0 --port 8000
 ```
 
-API endpoints: `GET /health`, `GET /api/state`, `POST /api/reset`, `POST /api/launch`, `POST /api/step`.
+Sessions are private and saved transactionally in local SQLite. Browser backups and downloadable private recovery files also survive server database loss. Configure a stable `DYSON_RECOVERY_KEY` in the hosting runtime before relying on redeploy recovery; this requires no paid service. See [session ownership, recovery, limits and verification](docs/SESSIONS.md). Existing API clients must retain their session cookie.
+
+API endpoints: `POST /api/recover`, `POST /api/session`, `DELETE /api/session`, `GET /api/checkpoint`, `POST /api/restore`, `GET /health`, `GET /api/state`, `POST /api/reset`, `POST /api/launch`, `POST /api/step`.
 
 Checks run in GitHub Actions on a real REBOUND install and a headless Chromium browser:
 
 ```bash
-python -m pytest tests/test_rebound.py -v
+python -m pytest tests/test_rebound.py tests/test_sessions.py tests/test_recovery.py -v
 python -m playwright install chromium
 python -m pytest tests/test_browser.py -v
 ```
