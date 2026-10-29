@@ -1,8 +1,32 @@
 # Controlled Solar-System Dyson Cloud Laboratory
 
-**Milestone design specification and implementation roadmap — proposed for approval**
+**Milestone specification — approved architecture direction; revised engineering sequence for owner review**
 
-Prepared October 23, 2026. This document authorizes nothing by itself. No milestone code, automation, hosting configuration, production merge, deployment, permission change, or purchase has been made. The proposed implementation continues the existing REBOUND foundation and Skunkworks interface.
+Prepared October 23; reconciled October 29, 2026 (DCL-PLAN-001). The bounded architecture was owner-approved October 25. This revision plans its implementation; it does not authorize the next coding task, migration, merge or deployment. Only this documentation assignment is in progress. Preserve the existing REBOUND application, interface and session-recovery contracts. Historical observations below retain their dates; they are not fresh test or operational evidence.
+
+## 0. Reconciliation audit and controlling decisions
+
+Authoritative development base for this planning task: `foundation/rebound-ci` at `5c57dac7671411faf0124dad5004921f88b371de`; AGENTS blob `c10d1a95e3a752f960029aa6940f7bfea084da8b`. Supported GitHub-plugin publication preserves that remote parent/tree; the clean but stale local `work` checkout at `2ae4926f391f131b2f6ab0accd89aed5b50daa4d` is excluded (24 commits behind). No simulator or dependency files change in this task.
+
+The owner-approved architecture controls conflicting October 23 recommendations. Loop 2 is active for individually assigned, approval-gated tasks. This is not unattended scheduling or concurrent-agent authorization. Source research (loop 1), engineering correctness (2), independent model validation (3), experiments using accepted models (4), and gameplay/learning (5) remain distinct. Regression tests accompany engineering from the start; CI success neither establishes scientific validity nor authorizes release.
+
+| Audited assumption or gap | Reconciliation / dependency |
+| --- | --- |
+| §4.5 treated REBOUNDx as an undecided future option; requirements still allow REBOUND 4 | Target REBOUND 5.2.2 + REBOUNDx 5.1.0, subject to project migration tests (P1). No dependency migration here. |
+| Reservoir lists did not define typed inventory/journal semantics | Require per-object typed state, immutable events, independent local/global reconciliation and shared-potential/boundary conventions (§4.2, P2/P3). |
+| Quiet gravity and algebraic closure could be mistaken for full validation | Separate software, numerical verification, physical validation and experimental evidence (§8); a balanced invented force remains unvalidated. |
+| Universal Newtonian speed cutoffs or PN add-ons could imply broad relativity | Use intended-use error budgets and separate Newtonian/PN/SR/1PM/fixed-metric model cards (§4.6). |
+| Spacecraft reference selection was missing | Basilisk 2.12.0 is an independent reference, not an automatic runtime dependency. Tudat remains an unexecuted alternative. |
+| Original §9 prioritized visuals/catalog before the accounting foundation | P0–P3 establish baseline, migration evidence, typed contracts and recovery before new actuation; UI/catalog work follows stable contracts. Original M0–M11 sequence is preserved in Appendix A. |
+| v0.14 described as unrecovered | Complete HTML text is now durably available in the owner's historical archive; audit its provenance before any adaptation. Historical interaction design only, not a dynamics/feasibility oracle. |
+| Earlier charter/reports say approval or loop activation was pending | Later explicit owner decisions supersede those status statements; earlier evidence and failures remain historical. |
+| Earlier examples select a tether/photon device | These remain candidate elementary laboratories, subject to device/model qualification; no automatic approval of capture hardware. |
+| §11 automation capability observations could look current | All are dated planning history. No schedule, service, notification or unattended runner is activated by this revision. |
+
+Approved direction does not settle packet composition/charge/speed/horizon, actuator material laws, empirical data, close-encounter fidelity, state-coupling algorithm, archive conversion policy, or redistribution rights. Resolve each before the dependent capability. Planetary bootstrap, galactic and intergalactic concepts remain future research; no implementation work for them is added.
+
+Private approval and checkpoint records stay in Notion; this repository contains the technical plan, not copied private research notes, credentials or datasets. PR and exact-head CI evidence belong in the task checkpoint/PR after publication.
+
 
 ## 1. Decision summary
 
@@ -10,11 +34,11 @@ Build a gamified citizen-science future-civilization design sandbox around one a
 
 The recommended milestone outcome is a bounded, interactive Solar System laboratory: a real 3D view; Sun, eight planets, the Moon and a curated major-moon catalog; editable scenarios and ordinary massive custom bodies; resource-funded actuators and explicitly modeled coupling; limited-observation interception policies; reproducible experiments; and a first playable campaign about building and operating a solar-orbiting cloud while protecting important orbits. Successful capture is an outcome to test, not a promised capability.
 
-Recommended choices, subject to approval:
+Architecture direction is approved; engineering choices and each bounded implementation package still require their own acceptance and owner review:
 
 | Decision | Recommendation | Why |
 | --- | --- | --- |
-| Physics authority | Continue REBOUND; retain IAS15 as the reference integrator | Preserves moving-Sun mutual gravity, tests and recovery work |
+| Physics authority | Target REBOUND 5.2.2 + REBOUNDx 5.1.0 after project-level tests; retain IAS15 gravity reference | Preserves moving-Sun mutual gravity, tests and recovery work |
 | Application structure | Modular Python monolith and a modular browser client | Avoid premature services, billing, or infrastructure replacement |
 | Visualization | Locally bundled Three.js/WebGL with float64 world coordinates and a floating render origin | Genuine 3D with reusable control/inspection behavior |
 | Initial system | Sun + eight planets + independently resolved Moon, then curated major moons | Clear catalog coverage with explicit mass/ephemeris consistency |
@@ -32,13 +56,15 @@ Recommended choices, subject to approval:
 
 ### 2.1 Repository evidence
 
+The following inspection/counts describe the October 23 design baseline. October 29 remote verification confirms merged PR #5 and the §0 base; PR #1 remains a draft from foundation/rebound-ci to main and is outside this assignment. No new production action or live-service verification is inferred.
+
 Inspected `AGENTS.md`, `DEVELOPMENT.md`, `README.md`, both browser interfaces, `physics.py`, `server.py`, `sessions.py`, `recovery.js`, all five test/support files, recovery/evidence documentation, Git history, available branches, Issues #2/#3, PR #4 and GitHub Actions metadata.
 
 GitHub now reports [PR #4](https://github.com/danedormio/dyson-cloud-lab/pull/4) merged into **`foundation/rebound-ci`**, at `29bb345b9409ab1533ea8308805b3fd4c4cf9de6`. That merge's application tree matches the inspected `db387fc99986196dc0721b2f37b861cca94756b3` recovery implementation. Production `main` remains `2ae4926f391f131b2f6ab0accd89aed5b50daa4d`. This inspection did not merge either branch.
 
 The previously verified baseline is **40 tests**: 10 physics, 14 session/API, 8 recovery/migration and 8 Chromium. Both jobs passed on the PR revision; the foundation merge also has a completed successful physics/browser run. These are existing CI observations, not new tests of this proposed milestone. No milestone behavior has yet been implemented or validated.
 
-The repository's `DEVELOPMENT.md` still contains historical statements about REBOUND installation failure and staging creation. Reconcile those with current evidence in increment M0; do not treat old prose as current operational proof. The Skunkworks service name is documented, but its current URL, deployed SHA, uptime, recovery-key configuration and account privileges have not been independently verified here.
+The repository's `DEVELOPMENT.md` still contains historical statements about REBOUND installation failure and staging creation. Reconcile those with current evidence in P0a; do not treat old prose as current operational proof. The Skunkworks service name is documented, but its current URL, deployed SHA, uptime, recovery-key configuration and account privileges have not been independently verified here.
 
 ### 2.2 Reuse, adapt, replace
 
@@ -54,7 +80,7 @@ The repository's `DEVELOPMENT.md` still contains historical statements about REB
 | Test suite / Actions | Physics conservation, ownership, failure atomicity, recovery, real browser interactions, screenshots and CI reporting | Separate physics, UI/UX, integration and performance gates; add quantitative model tests and model-specific fixtures |
 | Mission vocabulary | Cloud elements, incoming objects, effective region, tracked arrivals, shared resources | Clarify that labels are views and an “effective region” is not a guaranteed force/capture boundary |
 
-The initial repository notes reference v0.14 idealized coupling, shared capacity, rapid-launch failures and interaction-order bias. **The full earlier v0.14 controller and resource implementation are not in the inspected repository history.** The checked-in browser preview explicitly marks those systems inactive. Do not claim they can be ported line-for-line. Recover original files, if available, as a separate source-audit input; meanwhile preserve the visible workflows and write regression scenarios for the cited failures. Missing legacy code does not block 3D, catalog, persistence or physics-contract work.
+The initial repository notes reference v0.14 idealized coupling, shared capacity, rapid-launch failures and interaction-order bias. **The original inspection did not find the full v0.14 implementation in repository history.** As of this reconciliation, the owner's historical archive supplies complete recovered HTML as machine-readable Notion text. The archive reports original raw SHA-256 `ca2092e8b4a20b759284e5fd9c75adb157e636ad40688891bf055b5c8f1a2fd3` and 44,367 UTF-8 bytes; normalized code text is not automatically byte-identical. Its HTML title says 0.12 despite the v0.14 archive label: preserve and document that discrepancy, never silently relabel source. This task confirms retrieval, not byte identity or full source validation. P0 freezes provenance/interaction inventory before refactoring. Preserve launch, selection, morphology, visibility/trail and diagnostic ideas; never port its heuristic capture forces or treat outcomes as physics regression targets.
 
 ## 3. Product specification and milestone boundaries
 
@@ -98,7 +124,7 @@ Deferred: star-by-star galaxy simulation, production multiplayer collaboration, 
 - **Do not double count barycenters:** independently resolved Earth + Moon require consistent component states/masses, not an Earth–Moon-barycenter mass plus another Moon. Apply the same rule to planetary-system barycenters and explicit moons. Cross-check gravitational parameters rather than combining unrelated rounded mass tables.
 - User-created bodies support mass, radius/collision model, Cartesian or orbital initial conditions, reference body/frame, epoch and validated engineering parameters. Convert orbital elements once at a defined epoch. Treat parabolic and singular element cases explicitly; provide Cartesian input as the unambiguous alternative.
 - Inserting/deleting/changing a body during a run is either a scenario fork or an explicit boundary flux event that accounts for mass, energy and momentum. A launch UI is not permission to claim closed-system conservation across magically added matter.
-- Check mass positivity, finite values, supported speed regime, coincident/contact geometry, units, bounds and object count before committing a scenario. Current API launch limits allow speeds inappropriate for Newtonian claims; the new physical mode must warn/reject out-of-regime choices. Propose warnings above 0.001c and disallowing >0.01c in validated Newtonian missions, subject to the accuracy study. These thresholds are modeling policy, not new relativistic physics.
+- Check mass positivity, finite values, supported speed regime, coincident/contact geometry, units, bounds and object count before committing a scenario. Current API launch limits allow speeds inappropriate for Newtonian claims; the new physical mode must warn/reject out-of-regime choices. The earlier 0.001c warning/0.01c rejection proposal is provisional historical policy, not an accepted validity envelope. Derive mission-specific limits from kinetic/momentum and gravitational approximation errors, field strength, observable tolerance and horizon before labeling a Newtonian mission validated.
 
 A Newtonian model initialized from a high-accuracy ephemeris will subsequently diverge from that ephemeris because its force model differs. Separate integration error from model discrepancy; do not fix this by periodically resetting planetary positions.
 
@@ -117,6 +143,18 @@ For a closed mechanical benchmark, total momentum and angular momentum are const
 Energy accounting must not double count actuator work, a change in kinetic energy, exhaust energy and battery draw. Each actuator adapter declares source, sink, counterpart, work, losses and applicability. A heat ledger alone is not a thermal model: temperature needs heat capacity/state, and cooling needs a radiator/emission model and environment assumptions.
 
 Energy/momentum carried by photons require a validated nonrelativistic radiation interface compatible with the chosen matter approximation. Do not assert exact closed Newtonian conservation while ignoring source rest-mass/energy terms. If stellar luminosity is treated as prescribed, declare and account for an open energy source and its reaction/boundary momentum instead of inventing an infinite closed-system battery.
+
+### 4.2.1 Typed inventories and immutable transfer journal
+
+Every physical object has a stable identity and versioned typed inventory. Quantities carry units, frame/origin/epoch where applicable, component identity and explicit modeled/unmodeled status. Distinguish dry structure, propellant, payload/feedstock and expelled/captured matter; translational state, spin/inertia/attitude; chemical/electrical stores, thermal/internal state; and emitted/in-flight radiation. Zero, unavailable and not modeled are distinct. Declare the mass convention: Newtonian material mass is not automatically a relativistic invariant/rest-energy balance. Do not count propellant both inside total body mass and again as a separate gravitating object.
+
+An accepted transfer is append-only and auditable: schema/model version, event ID and monotone sequence, run/revision, accepted interval/time, source/destination IDs (including boundary/carrier accounts), quantity types/units/frame, signed mass/impulse/angular impulse/energy, mechanism and causal command ID, and pre/post-state references. Corrections append a reversal/superseding event; never edit past scientific evidence. A checkpoint stores journal offset/digest and inventory checksum. Hash chaining detects alteration against a trusted checkpoint; it is not independent proof of physical correctness or a signature/ownership replacement.
+
+Independently compare measured pre/post inventories against event postings for each object and interaction, then aggregate system-wide totals. Derive audits from states/independent equations, not just summing the same journal entries that generated them. Test a wrong pair of opposite impulses that cancels globally but fails locally. Include remote noncentral impulses: linear closure alone can conceal missing carrier/spin angular momentum. Rejected trials/commands create no resource expenditure; accepted retries are idempotent and atomic.
+
+Shared gravitational energy is an interaction account: sum each pair potential once, with an explicit diagnostic allocation convention if object views are desired. Allocated shares must sum to the pair value; assigning the full pair energy to both objects is invalid. Separate internal transfers from net external flux and external work/torque; account for insertion/removal, exhaust, photons and prescribed sources. Use a fixed inertial origin for angular momentum; model-specific energy diagnostics are required for PN or external time-dependent fields. Local mechanical energy need not be conserved individually: interaction work, flux, torque and potential exchange must explain its change.
+
+Audit mass, all three linear/angular momentum components and energy both locally and globally. Define local scales, nonzero absolute floors and normalized tolerances before the task; do not normalize a spacecraft transfer by the Sun. Unknown heat, capture or exhaust terms block a closure claim rather than becoming an adjustable balancing entry.
 
 ### 4.3 Actuator and resource model
 
@@ -144,7 +182,7 @@ Solar power uses declared collector area, orientation, efficiency, shadowing and
 | Mechanical tether/spring/damper | First coupling laboratory at physically short separations | Equal/opposite interaction, potential energy, damping to heat, force/strain/rate limits, finite attachment work and fracture outcome |
 | Photon emission/absorption/reflection | Second coupling model for remote momentum transfer | Emitter recoil, propagation delay, target momentum, optical power, pointing, aperture/diffraction, losses, heating and escaping/re-emitted light |
 | Electromagnetic/plasma interactions | Later mechanism-specific extension | Requires field/source model, reach/material properties and independent feasibility evidence; not a renamed generic attraction |
-| v0.14 idealized coupling | Recover as a labeled comparison/hypothesis if source becomes available | Reproduce its order bias and failures; no promotion to validated engineering without conservation and mechanism review |
+| v0.14 idealized coupling | Historical interaction-design evidence only; recovered HTML is not a physics reference | Record reported order bias/failures as motivation for independent fixtures; no automatic port or physical validation claim |
 
 For a linear spring/damper, specify a consistent potential and dissipated power; applying a clipped force while retaining the unclipped potential is inconsistent. Turning on a tether, changing rest length or breaking it cannot create/discard energy invisibly. If collision/material behavior is not yet modeled, stop and classify the contact rather than silently merge or bounce bodies.
 
@@ -154,13 +192,30 @@ A useful feasibility screen: changing the momentum of a 1-kg body by 25 km/s req
 
 ### 4.5 Integration with REBOUND
 
-Keep IAS15 as the reference for gravity and force-bearing validation. Evaluate alternative integrators or REBOUNDx only for an explicit benchmark and approval; the existence of an integration package does not validate a device.
+Keep IAS15 as the gravity reference. REBOUND 5.2.2 / REBOUNDx 5.1.0 are the approved migration targets, contingent on project-level installation/build, callback/operator, gravity, API/browser and recovery tests. Current `requirements.txt` remains `rebound>=4.4,<5` until a separately approved P1 task passes. Pin tested artifacts/build details and preserve a historical reader/converter: cross-major native archives are not assumed compatible. Custom callbacks/effects require an explicit reconstruction registry, versioned parameters and tests; saved bytes alone do not restore Python functions.
+
+Use Basilisk 2.12.0 in an isolated independent-reference environment for matched finite-burn/attitude problems. Do not add it to production requirements or redesign runtime around it automatically. Its previously researched rocket/attitude fixtures are narrow evidence; scheduling order, depletion and coupled-state behavior need project-specific tests. Compare generalized-state integration and accepted-step splitting on the same problem before selecting a coupling algorithm. Package reuse and ledger closure do not validate the physical law.
 
 Adaptive integrators evaluate forces at trial stages. **Force callbacks must be pure with respect to reservoir consumption:** do not debit a battery, emit a packet or increment a control action on every callback. A transaction/scheduler commits resource transfers only for accepted physical intervals. Candidate approaches are validated coupled state integration or bounded operator splitting with convergence tests. Select one in the actuation increment after a numerical spike; do not assume discrete kicks remain accurate for stiff coupling.
 
 Resolve control/event/thermal/interaction discontinuities at explicit boundaries. Accumulate error diagnostics independently of resource accounting. Small control intervals, close approaches and stiff tethers may require smaller integration intervals or rejection; GUI time acceleration must not override numerical safety.
 
 Keep the current state-only recovery guarantee until full integrator-history archives are independently tested. Additional persistent state must include reservoirs, controller/estimator state, RNG, delayed commands/photons, constraints and ledgers. Restoring bodies alone would no longer restore the experiment.
+
+### 4.6 Explicit validity regimes and independent qualification
+
+Each enabled model needs a versioned model card: intended observable/use, equations and primary sources, parameters/data provenance, frame/time/units, assumptions/omissions, domain and horizon, numerical settings, error budget, independent reference, evidence, failure criteria and disclosure. Status is use-specific: proposed, implemented/unvalidated, numerically verified, independently validated for the stated use, or out of regime. No universal certified-engine badge.
+
+| Regime | Permitted interpretation / required gate |
+| --- | --- |
+| Newtonian resolved N-body | Current bounded gravity core; require speed/weak-field and omitted-effect error budgets for the observable/horizon, analytic finite-mass orbits, recoil, refinement and close-encounter tests. Existing heuristic speed thresholds are warnings/rejections, not universal physical limits. |
+| Controlled post-Newtonian | REBOUNDx gr/gr_full/gr_potential have different assumptions/invariants; verify the selected equations, precession and model-specific energy diagnostics. Not arbitrary-speed matter or complete GR. |
+| Special-relativistic material interactions | Require four-momentum, invariant mass, finite-energy emission/reflection/absorption/exhaust and Lorentz-frame consistency with correct Newtonian limits. PN gravity does not supply these laws. No naive Newtonian/SR splice. |
+| First post-Minkowskian (1PM) | Independent weak-field arbitrary-velocity point-particle reference only after matched conventions/tests. PoMiN canonical momenta are not automatically measured mγv; unresolved scattering mismatch prevents precision-oracle claims. |
+| Fixed-metric geodesics | Restricted test-body use in declared Schwarzschild/Kerr background with source reaction outside the model; validate trajectories and weak limits. No closed comparable-mass backreaction claim. |
+| Strong-field comparable-mass, detailed plasma/material or multiscale closure | Deferred pending a separately qualified formulation, empirical/reference evidence and owner scope approval. No universal relativistic switch or future galaxy implementation. |
+
+Capture, thermal behavior, exhaust, close encounters, source reaction, and license/redistribution each have separate gates. A generic energy-limited impulse is a disclosed abstraction; it is not a qualified propulsion/capture mechanism. Material capture requires composition/charge, contact/interaction law, momentum sink, deposition/ablation/re-emission and thermal limits. Transfers/construction need donor depletion, receiver mass/state update, work/losses and causal carriers. Do not create matter, free cooling, reusable exhaust energy or unlimited heat sinks.
 
 ## 5. Detection, inference, prediction and coordinated control
 
@@ -255,7 +310,7 @@ A force mechanism is separate from a control policy; a resource model is separat
 | Scenario | Schema version, catalog/provenance, epoch/time scale/frame, initial bodies, hardware profiles, sensor model, mission constraints, seed and assumptions |
 | Body identity/state | Stable ID independent of list position; physical quantities, role tags, radius/contact policy, attitude/inertia when relevant, reservoir/component references |
 | Command | Stable command ID, owner/run, expected revision, scheduled interval, device/frame/vector, requested budget and idempotency key |
-| Accepted event | Sequence/time, common decision snapshot, accepted/rejected commands, reason and actual resource/boundary transfers |
+| Accepted event / transfer journal | Immutable sequence/time, model/schema version, common snapshot, source/destination/carrier IDs, typed signed quantities/frame, state references, causal command, integrity chain; rejected command reason without spending |
 | Run manifest | Scenario checksum, code revision, dependency/solver versions, tolerances, control/RNG settings, enabled models and hardware/runtime metadata |
 | Checkpoint | Complete physical/engineering/estimator/controller/scheduler state, event offset, RNG and diagnostic baseline, plus recovery format/version/ownership metadata |
 | Result | Objective metrics, uncertainty, residuals, convergence evidence, validity flags and outcome/failure classification |
@@ -282,7 +337,11 @@ Use explicit reference frames, catalog providers, force/actuator interfaces, obs
 
 ## 8. Validation strategy and acceptance gates
 
-Separate model truth, UI behavior and integration evidence. A single green browser screenshot or a small global energy residual cannot validate an actuator.
+Separate four evidence lanes: software correctness/data integrity (loop 2), numerical verification against equations, independent physical-model validation for a declared use (loop 3), and preregistered experiments using that accepted instrument (loop 4). Gameplay/learning evidence (loop 5) shares the engine without changing physical budgets. A browser screenshot, optimizer success or small global residual cannot validate an actuator.
+
+Independent physical validation requires an analytic derivation, distinct implementation with matched assumptions, empirical data or withheld ephemeris evidence as appropriate. State when empirical validation is unavailable: an idealized model may be numerically verified without supporting real-device performance claims. Freeze observables, characteristic scales, absolute floors and tolerances before interpreting results; preserve failures and changed-model supersession. Record separate position/velocity/event errors, parameter uncertainty and model discrepancy. Exact conservation alone cannot certify trajectories.
+
+Historical research reported narrow REBOUND-pair, callback, archive, Basilisk and relativistic fixtures. They are inputs to test design, not freshly executed project CI or complete fuel/thermal/capture validation. Do not import historical success counts as new results.
 
 | Gate | Tests and independent reference | Failure examples it must detect |
 | --- | --- | --- |
@@ -300,51 +359,57 @@ Retain current pure-gravity baselines: relative energy/angular-momentum error <1
 
 For resource/interaction tests, normalize residuals against the **local transaction's mass/energy/impulse scales**, not the Sun's enormous totals, which could hide a broken 1-kg maneuver. Preserve component and transaction ledgers separately; subtraction of two Solar-System-sized floating-point energies cannot resolve a small spacecraft's work. Use stable pairwise/work formulations, compensated accumulation where useful and higher-precision independent small-system references. Proposed starting acceptance budgets: mass balance relative error ≤1e-12, isolated impulse residual ≤1e-10 relative to an explicit nonzero reference impulse, and accounted-energy residual ≤1e-8 of the sum of absolute transaction energies. Define absolute floors for zero/nearly-zero benchmarks. Approve tolerances and characteristic scales before implementation; failure may require a better algorithm, not a looser test.
 
-Every force/control increment requires at least two refinements of integration/control interval and stable qualitative outcomes. Define quantitative convergence margins in that increment's test plan; an initial target is <1% change in objective-relevant metrics and no safety classification change away from documented threshold cases. Stochastic controller comparisons preregister seeds, sample size, metrics and confidence intervals. Thirty no-failure trials do not demonstrate rare-event safety; report the limited confidence rather than “zero risk.”
+Every force/control increment requires three resolution/tolerance levels (at least two refinements) of integration/control interval and stable qualitative outcomes. Define quantitative convergence margins in that increment's test plan; an initial target is <1% change in objective-relevant metrics and no safety classification change away from documented threshold cases. Stochastic controller comparisons preregister seeds, sample size, metrics and confidence intervals. Thirty no-failure trials do not demonstrate rare-event safety; report the limited confidence rather than “zero risk.”
 
 CI lanes should separately report physics, UI/UX, integration/recovery and, when affordable, a bounded benchmark/scheduled research lane. Store per-run counts, failures, version/target, logs, screenshots and model-specific artifacts. An independent executable calculation or analytic reference is needed for each new mechanism; tests that call the same implementation twice are not independent validation.
 
 A completed increment includes: reproducible scenario, documented tolerances, passing required gates, reviewed actual interactions/screenshots, no unexplained regression, recovery compatibility, operator notes and an unmerged reviewable PR. At most three code-repair iterations per task; if still blocked, preserve evidence and report rather than weaken tests.
 
-## 9. Implementation roadmap: substantial, playable increments
+## 9. Dependency-ordered implementation plan — proposed packages
 
-These are proposed issue-sized deliverables, not authorization to start all of them. Each may contain several daily tasks/PRs. Indicative effort uses focused approved development cycles: S≈1–2, M≈3–5, L≈5–10; uncertainty is high for coupled numerical physics. Do not interpret the entire roadmap as an overnight commitment or fixed delivery date.
+P0–P9 supersede the original M0–M11 priority order (preserved in Appendix A). Architecture approval is not approval to execute these tasks. Each row is a reviewable milestone, split into the named bounded packages as needed; no dates, new services or automatic deploys are committed. Every package repeats AGENTS preflight, preserves current APIs/session isolation/private recovery, supplies exact-head CI and stops at an unmerged draft PR. No subsequent package starts without owner authorization.
 
-| Increment | Dependencies / effort | Meaningful Skunkworks result | Acceptance and review artifact |
+| Milestone / prerequisites | Expected changes and manageable packages | Testable acceptance / numerical or scientific gate | Risks / stopping conditions |
 | --- | --- | --- | --- |
-| **M0 — Preserve and expose the baseline** | Design approval; S | Reliable current laboratory with clear run/version, limits, backup status and a small mission brief | Confirm foundation SHA and existing deployment state; freeze regression fixtures/version records; repair stale docs; inventory any supplied v0.14 files; 40-test baseline retained; no hosting change without approval |
-| **M1 — True 3D explorer** | M0; M | Rotate/zoom/pan the current Sun–Earth–cloud system, select bodies and view an inclined incoming trajectory | Locally bundled renderer; floating origin; recover launch/radius/trail/selection behaviors; projection tests with nonzero z; camera operations preserve physics; real-browser/screenshot gate; first “inspect an arrival” mission |
-| **M2 — Versioned Solar System and identities** | M0; M1 for visual gate; M/L | Sun + eight planets + Moon presets, meaningful system/planet views and stable object inspection | Common-epoch offline state bundle, consistent GM/component masses, source provenance; stable IDs replacing positional assumptions; default body-slot accounting; synthetic versus ephemeris mode; migrating existing checkpoints |
-| **M3 — Scenario workshop and replay foundation** | M2; M | Edit/add private bodies and cloud geometry, save named scenarios, branch and replay an arrival experiment | Unit/frame validation, safe epoch conversion, command/event log and RNG; no unaccounted mid-run insertion; recovery/archive schemas; private versus sanitized export; old backup compatibility; deterministic/tolerance-based replay evidence |
-| **M4 — Funded manual maneuver** | M3; L | Configure a real constrained actuator and perform a small orbit change while inspecting propellant, recoil, power and heat | Resolved exhaust reference and validated ledger alternative; pure force callbacks/accepted-interval accounting; saturation/exhaustion tests; full-state recovery; first engineering mission with a finite budget |
-| **M5 — Safety and feasibility laboratory** | M4; M | Compare a requested maneuver against resource bounds and protected-orbit constraints; see an honest infeasible result | No-control baseline, finite-horizon closest-approach/constraint metrics, cancellation and isolated prediction copy; no trajectory clamping; local-scale conservation residuals visible |
-| **M6 — Short-range coupling** | M4/M5; L | Interact with a small tethered formation; tune stiffness/damping, see heat/strain and a physically classified failure | Independent spring/damper/recoil references; attachment/rest-length/fracture accounting; stiffness convergence; permutation/rapid-command tests; no arbitrary AU-scale reach |
-| **M7 — Remote photon coupling** | M4/M5; L | Aim a finite beam and attempt a slow-target momentum change, showing pointing, flight time, delivered versus wasted power and heating | Emission/absorption/reflection and source boundary audit; P/c limits; aperture/line-of-sight and resource sharing; finite propagation; explicitly infeasible high-speed fixture; mechanism-review approval |
-| **M8 — Detection, estimation and predictive display** | M3/M5; M/L; may overlap M6/M7 after contracts stabilize | Toggle truth/observed/estimated/predicted paths; identify a noisy or delayed incoming object | Seeded sensors, uncertainty and missed observations; independent estimator validation; clear truth-access policy labeling; stale prediction rejection; mission rewarding useful observation strategy |
-| **M9 — Coordinated interception and braking** | M5, M8 and a validated actuator/coupling path; L | Assign a small cloud, preview a feasible plan, run it and inspect why it succeeds, saturates or fails | Common-snapshot proposals, deterministic conflict resolution, resource/communications bounds, no-order-bias tests; constrained replanning; abort/reserve logic; no hidden access to truth |
-| **M10 — Secure-trajectory campaign and research workbench** | M3–M9; L | A campaign comparing no control, feasible funded control and infeasible arrivals; reproducible strategy comparisons | Declared target orbit/region, dwell horizon and safety criteria; no “captured” from two-body energy alone; replay/export of complete experiments; uncertainty ensembles and falsifiable objectives; human-reviewed findings |
-| **M11 — Catalog breadth, usability and release candidate** | M2 onward; M/L in bounded subpacks | Curated major moons/dwarf packs, presets, tutorial progression, accessible inspector and a coherent mission selection screen | Exact body coverage, no barycenter double count, measured total-body budgets, UX review, performance/cancellation/security tests, backup/migration drill, license/data-notice review and operational checklist; no automatic production release |
+| **P0 — Reproducible baseline and historical interface provenance**; review of this plan | P0a freeze current gravity/API/recovery fixtures, runtime/version manifest and dated documentation; P0b preserve v0.14 retrieval/checksum discrepancy and interaction inventory before frontend refactoring. No new physics. | Current exact-head physics/session/recovery/browser suite; stable existing scenarios and error budgets; distinguish synthetic state and state-only restart; archive provenance and known anomalies recorded. | Missing source/byte mismatch stops an exact-archive claim, not safe gravity work. Unexpected baseline failures stop progression; do not rewrite old evidence. |
+| **P1 — Dependency migration qualification**; P0a | Isolated comparison of current supported REBOUND environment and 5.2.2/X5.1.0; then one separately reviewed dependency/adapter migration if gates pass. Keep historical reader fixtures. | Project API/browser/recovery regressions; finite-mass eccentric/inclined Kepler trajectory, local/global gravity metrics and three tolerance levels; custom-force trial-particle semantics; accepted-step operator time; built-in effects and custom callback reconstruction; same-version continuation and explicit cross-major rejection/conversion. Record exact builds, pip check and independent trajectory errors. | Native archive incompatibility, transitive build selection, operator semantics or unexplained numerical regression block migration. No weakening fixtures or runtime Basilisk addition. |
+| **P2 — Typed inventory and journal kernel**; P0a; runtime binding after P1 | P2a pure versioned domain records/stable IDs, units/frame/mass conventions and append-only journal with independent reconciliation fixtures; P2b read-only adapter to present gravity objects, no new forces. | Object/component mass consistency; pair energy counted once; local and global mass/vector momentum/angular momentum/energy audits; global-cancel/local-fail and noncentral impulse adversaries; invalid units/frames, negative stores, duplicate IDs and journal alteration rejected. Local budgets/floors frozen before implementation. | Schema overreach, hidden unmodeled terms or audits that merely re-sum postings block acceptance. No journal-based claim of physical hardware validity. |
+| **P3 — Complete-state persistence and accepted-event contracts**; P1/P2 | P3a versioned portable inventory/journal/checkpoint extension with legacy adapters; P3b model registry/callback reattachment and accepted-interval scheduler contract. Retain SQLite transactions, browser/private backup, deployment key and ownership. | Atomic recovery includes inventories, journal offset/digest, model/settings, RNG, commands/delays and diagnostic baselines when modeled; uninterrupted/restart comparisons with explicit exact/tolerance promise; idempotency, invalid/corrupt/truncated uploads, failure rollback and two owners. Accepted vs trial steps cannot double-spend. | State-only restart must retain honest label; unresolved archive compatibility, key handling or partial state restoration stops new dynamics. Benchmark before any worker redesign. |
+| **P4 — Scenario and explorer increments**; P2/P3; P0b for legacy adaptation | P4a stable-ID synthetic scenarios/private forks with no free mid-run insertion; P4b common-epoch offline Sun/planets/Moon bundle and held-out checks; P4c bounded 3D renderer over existing controls/recovery. | No barycenter double count; frame/time/GM/checksum provenance and body-slot budget; current backup migration; off-plane camera/select/launch/trail tests preserve physical state; responsive bounded geometry. Ephemeris discrepancy separated from solver error. | Data rights/epoch mismatch blocks ephemeris claims; UI change cannot replace physics or recovery. Optional catalog breadth waits. |
+| **P5 — Finite-burn coupling spike, then funded manual maneuver**; P1–P3 and approved mechanism card; scenario UI after P4 | P5a isolated center-of-mass fixed-axis finite-propellant problem comparing coupled-state vs splitting and independent analytic/Basilisk reference; P5b choose adapter in review, implement bounded funded maneuver only afterward. | Rocket law/mass flow, resolved exhaust or justified boundary, work/heat and vector angular/linear closure; depletion, command ending mid-step, rejected trials, saturation and restart at three resolutions. Numerical energy funding separate from measured device efficiency. | No justified exhaust/energy model, resource spending in callbacks, uncontrolled event timing or mismatched independent result stops adoption. No capture controller or automatic runtime spacecraft framework. |
+| **P6 — Qualified elementary interactions**; P5 and separate device/model approval per package | P6a short-range mechanical attachment/spring/damper/fracture; P6b emitter/absorber/mirror with delayed radiation; optional attitude/thermal/resource-transfer packages only with their own model cards. | Independent potential/work/heat and torque references; real thermal state/cooling and energy source; photon recoil, in-flight/boundary flux, geometry/finite power and moving-target limits; transfer donor/receiver mass and energy closure. Material data needed for hardware claims. | Stiff/contact failure, undocumented constitutive laws, free steering/cooling, double-spent photons or unmodeled capture heating stop the affected feature. Passing one mechanism does not qualify another. |
+| **P7 — Safety, observations and bounded control**; P4/P5 and whichever P6 mechanism is used | First no-control predictions/feasibility/constraints; then seeded causal sensors/estimator; then manual, single-agent and common-snapshot coordinated policies in distinct PRs. | Independent prediction/estimator checks, withheld seeds, delay/association/bias tests; known feasible/infeasible fixtures, isolated optimizer rollout, control-interval refinement, stale revision rejection, permutation/simultaneous arrivals, finite shared resources and protected-orbit failure. | Optimizer success is not feasibility proof; unknown mechanism envelope, truth leakage, constraint clamping or order bias blocks control claims. |
+| **P8 — Validated-use campaign and experiment workbench**; relevant P4–P7 model gates independently accepted | Versioned objective/dwell horizon, baseline/controlled/infeasible missions; sanitized replay/results and preregistered bounded experiments. | Reproducible manifests/uncertainty, independent model evidence for the intended regime, preserved failures, explicit numerical/controller/physical infeasibility classifications. Separate experiment results from calibration and game scores. | Unvalidated regime, ambiguous secure/capture condition or unavailable empirical evidence limits claims; no automatic hypothesis sweep/public dataset publishing. |
+| **P9 — Catalog/UX breadth and release review**; stable P4 and relevant P8 gates | Optional moon packs, accessibility/tutorials, bounded performance and backup drills; license/data/security/release checklist in separate packages. | Catalog provenance/body caps, migration/recovery, actual browser interaction evidence, cancellation and export safety; reviewed dependency/transitive notices; five-loop evidence and explicit owner release decision. | No automatic production merge/deploy; licensing uncertainty blocks distribution claims. Schedules/feedback infrastructure need separate authorization. |
 
-Dependency outline:
+Dependency spine: P0a → P1 → P3; P0a → P2 → P3 → P4/P5 → qualified P6 → P7 → P8 → P9. P2a may be developed without changing dependencies; P2b runtime binding waits for P1. P4 visual work does not block isolated P5 reference fixtures. P7 can begin no-control studies after P4/P5; controllers wait for the actual mechanism they use. P0b must precede legacy UI refactoring. Regime-specific PN/SR/1PM/fixed-metric research is a separate gated branch of work, not a requirement to implement every regime before a useful Newtonian laboratory.
 
-```mermaid
-flowchart LR
-  M0 --> M1 --> M2 --> M3 --> M4 --> M5
-  M5 --> M6
-  M5 --> M7
-  M3 --> M8
-  M5 --> M8
-  M4 --> M9
-  M8 --> M9
-  M6 -. optional coupling path .-> M9
-  M7 -. optional coupling path .-> M9
-  M9 --> M10 --> M11
-  M2 --> M11
-```
+### 9.1 Recommended first coding work package — P0a baseline fixture and provenance harness
 
-M9 need not wait for every possible mechanism: a first constrained-thrust/tether demonstration may precede a more demanding beam-interception policy. Alternative branches converge through the same command, resource and diagnostic contracts. M11 catalog packs can proceed incrementally once M2's schema is stable; they are not permission to evade dependency-specific tests.
+**Proposed task ID DCL-BASELINE-001; NOT STARTED; owner approval required.** This is the smallest foundation for safely testing the approved migration. It delivers executable baseline evidence without new physics or changing dependency versions. Existing data/recovery assumptions should be frozen before adding inventory fields.
 
-**Recommended first three priorities:** M0 baseline/legacy-source audit, M1 real 3D explorer, and M2 versioned Sun–planets–Moon scenarios. Begin M4 only after scenario/replay contracts can preserve its new physical state. Prefer that sequence over a large untestable “capture controller” rewrite.
+- **Prerequisites:** owner accepts/revises this plan and explicitly authorizes P0a; repeat preflight at current development head and reconcile this PR before branching. Record current runtime/library versions and establish the existing suite's measured baseline. Never reuse a remembered SHA.
+- **Allowed scope:** one bounded headless fixture/manifest harness, tests and baseline documentation. Proposed paths: `tests/test_baseline_contract.py`, `tools/baseline_manifest.py`, `tests/fixtures/baseline/`, `docs/BASELINE-CONTRACT.md`; adapt names to repository conventions after inspection. Runtime `physics.py`, `server.py`, `sessions.py`, browser/recovery code, dependency constraints, Actions/deployment files and private datasets stay outside this package. If fixture capture requires modifying runtime, stop and propose the smaller adapter separately.
+- **Deliverable:** versioned synthetic quiet and inclined/eccentric finite-mass fixtures, an independent Kepler reference, before/after checkpoint continuation fixture, and sanitized machine-readable manifest with code SHA, exact packages/platform, scenario/checksum/seed, SI/frame/time, IAS15 settings, tested horizon, metrics/tolerances and state-only restart label. Runtime metadata stays separate from deterministic fixture data. No benchmark can silently regenerate approved expectations.
+- **Frozen acceptance:** preserve the existing 364-day gravity budgets from §8: relative energy/angular momentum <1e-8, momentum/total mass <1e-8 m/s; state-restart/reference position <1e-8 AU and velocity <1e-4 m/s. Proposed independent two-body case: G=1, masses 1 and .001, a=1, e=.8, inclination=.3, horizon 20.37 periods; at IAS15 epsilon 1e-8 require position/a and velocity/sqrt(GM/a) <1e-8. Also report epsilon 1e-5/1e-8/1e-11 errors, allowing documented roundoff plateaus rather than requiring monotone near-roundoff improvement. Verify finite total mass, vector transforms and model assumptions independently. If this case is incompatible with the verified baseline, preserve the result and return for review rather than loosen thresholds.
+- **Software checks:** malformed/nonfinite manifest inputs rejected; deterministic fixture checksums; old checkpoint semantics recorded; run all current physics, session, recovery and Chromium suites at exact PR head, review existing interactions/screenshots. Report failure/skip/not-run separately. This harness is numerical verification of specified point-mass cases, not empirical Solar System, capture or hardware validation.
+- **Stop conditions:** unexpected baseline regression, unavailable authoritative publication/CI evidence, fixture/provenance ambiguity, unapproved runtime/dependency change, private data exposure, or three repair iterations exhausted. Preserve evidence/checkpoint, no migration or next package. Deliver an unmerged draft to foundation/rebound-ci with exact SHAs and CI; stop for review.
+
+P0b then freezes the archived v0.14 interaction/provenance inventory before UI changes; P1 is the next dependency migration package. P2a can be considered next if migration is blocked, but is a separately approved task.
+
+### 9.2 Decisions still required at the dependent gate
+
+| Decision | Evidence / timing |
+| --- | --- |
+| Accept P0a scope and baseline budgets | Owner review of this planning PR; harness can begin only with further approval. |
+| Target package build/install and historical archive policy | P1 project tests; previous research is guidance, not migration signoff. Preserve old readers and explicit format version. |
+| Inventory schema, mass convention, pair-energy view allocation and zero-scale floors | P2a design/review with adversarial fixtures; global pair sum is fixed, view allocation is a documented convention. |
+| Coupled-state versus splitting; persistence accuracy promise | P3/P5 benchmark and restart/error evidence, not package preference. |
+| Packet mass/composition/charge/speed/horizon and physical actuator | Before P5/P6 hardware claims; source-backed exhaust/capture/thermal laws and primary data. |
+| Ephemeris bundle, units/time/GM and omitted-force budget | Before P4b; no live per-user external data dependency. |
+| Close-encounter and relativistic intended-use accuracy | Before such model/experiment activation; no extrapolation from quiet gravity. |
+| Data/dependency/transitive license and redistribution obligations | Before distributing affected artifacts; architecture approval supplies no legal clearance. |
+| Preview operational policy, unattended/concurrent execution, release | Separate owner approval; absent from this assignment. |
 
 ## 10. Approval-driven daily development cycle
 
@@ -431,7 +496,7 @@ Code continuation is allowed only inside the same approved task or a preapproved
 
 | Risk/input | Practical treatment |
 | --- | --- |
-| Original v0.14 source missing | Request/recover it during M0 if available; preserve existing UI now; treat its reported capture behavior as unvalidated, not as a regression target that overrides physical feasibility |
+| Historical v0.14 source provenance | Complete archived HTML is retrievable; P0b verifies normalization/checksum and the 0.12 title discrepancy, preserves interaction design, and excludes heuristic dynamics from scientific authority |
 | Hardware/coupling feasibility | Approve a mechanism data sheet and numerical/reference tests before implementation; separate idealized hypothesis devices from validated mission hardware |
 | Solar System ephemeris consistency | Pin one bundle/time/frame/GM convention; audit resolved moons against barycenter data; keep model discrepancy visible |
 | Adaptive force/resource accounting | Prototype the integration interface and convergence tests before attaching a controller; never debit resources in trial callbacks |
@@ -442,7 +507,7 @@ Code continuation is allowed only inside the same approved task or a preapproved
 | Scheduled agent/notification availability | Pilot actual chosen runner/authentication, trigger behavior, timezone and delivery; nothing is active merely because it is described here |
 | Skunkworks state/preview access | Verify actual service URL, deployed SHA and key configuration during an approved operational task; a local test or GitHub merge is not proof of a live preview |
 
-Approval can proceed without answering every future hardware question. Approve the architectural direction, the first bounded increments M0–M2 and the validation rules first. Resolve mechanism-specific choices before M4/M6/M7 and scheduling credentials/permissions before enabling automation. This design approval must not be interpreted as permission to merge/deploy production, activate an open-ended bot, buy services or publish research data.
+The architectural direction is approved. This revised sequence and P0a are proposals awaiting owner review; no coding task starts automatically. Resolve mechanism-specific choices before P5/P6 and any scheduling credentials/permissions only in a separately approved task. This design approval must not be interpreted as permission to merge/deploy production, activate an open-ended bot, buy services or publish research data.
 
 ## 13. Evidence and reference register
 
@@ -451,3 +516,48 @@ Approval can proceed without answering every future hardware question. Approve t
 **Automation sources actually read:** installed Codex 0.163.0 help for `exec`, `exec resume`, `queue`, `cloud` and `cloud exec`; [official Codex GitHub Action README](https://github.com/openai/codex-action); [GitHub workflow event source](https://github.com/github/docs/blob/main/content/actions/reference/workflows-and-actions/events-that-trigger-workflows.md); [GitHub scheduling example/timezone source](https://github.com/github/docs/blob/main/data/reusables/repositories/actions-scheduled-workflow-example.md); [schedule delay caveat](https://github.com/github/docs/blob/main/data/reusables/actions/schedule-delay.md). This environment could not directly fetch the hosted Codex app automation documentation, so account-specific app scheduling is deliberately marked unverified.
 
 **Scientific/implementation authorities to consult during approved implementation, not represented as new validation here:** [REBOUND documentation](https://rebound.readthedocs.io/), [JPL Horizons manual](https://ssd.jpl.nasa.gov/horizons/manual.html), [Horizons API specification](https://ssd-api.jpl.nasa.gov/doc/horizons.html), relevant IAS15/REBOUNDx papers and device-specific sources, and [Three.js documentation](https://threejs.org/docs/). Pin the actual data/tool versions and document reviewed assumptions in each implementation increment.
+
+## Appendix A — preserved October 23 implementation sequence
+
+Historical planning evidence only. Section 9's P0–P9 sequence supersedes these priorities and dependencies; M labels in older prose refer to this original design, not active assignments. No original increment is marked implemented by this reconciliation.
+
+### Original M0–M11 roadmap
+
+These are proposed issue-sized deliverables, not authorization to start all of them. Each may contain several daily tasks/PRs. Indicative effort uses focused approved development cycles: S≈1–2, M≈3–5, L≈5–10; uncertainty is high for coupled numerical physics. Do not interpret the entire roadmap as an overnight commitment or fixed delivery date.
+
+| Increment | Dependencies / effort | Meaningful Skunkworks result | Acceptance and review artifact |
+| --- | --- | --- | --- |
+| **M0 — Preserve and expose the baseline** | Design approval; S | Reliable current laboratory with clear run/version, limits, backup status and a small mission brief | Confirm foundation SHA and existing deployment state; freeze regression fixtures/version records; repair stale docs; inventory any supplied v0.14 files; 40-test baseline retained; no hosting change without approval |
+| **M1 — True 3D explorer** | M0; M | Rotate/zoom/pan the current Sun–Earth–cloud system, select bodies and view an inclined incoming trajectory | Locally bundled renderer; floating origin; recover launch/radius/trail/selection behaviors; projection tests with nonzero z; camera operations preserve physics; real-browser/screenshot gate; first “inspect an arrival” mission |
+| **M2 — Versioned Solar System and identities** | M0; M1 for visual gate; M/L | Sun + eight planets + Moon presets, meaningful system/planet views and stable object inspection | Common-epoch offline state bundle, consistent GM/component masses, source provenance; stable IDs replacing positional assumptions; default body-slot accounting; synthetic versus ephemeris mode; migrating existing checkpoints |
+| **M3 — Scenario workshop and replay foundation** | M2; M | Edit/add private bodies and cloud geometry, save named scenarios, branch and replay an arrival experiment | Unit/frame validation, safe epoch conversion, command/event log and RNG; no unaccounted mid-run insertion; recovery/archive schemas; private versus sanitized export; old backup compatibility; deterministic/tolerance-based replay evidence |
+| **M4 — Funded manual maneuver** | M3; L | Configure a real constrained actuator and perform a small orbit change while inspecting propellant, recoil, power and heat | Resolved exhaust reference and validated ledger alternative; pure force callbacks/accepted-interval accounting; saturation/exhaustion tests; full-state recovery; first engineering mission with a finite budget |
+| **M5 — Safety and feasibility laboratory** | M4; M | Compare a requested maneuver against resource bounds and protected-orbit constraints; see an honest infeasible result | No-control baseline, finite-horizon closest-approach/constraint metrics, cancellation and isolated prediction copy; no trajectory clamping; local-scale conservation residuals visible |
+| **M6 — Short-range coupling** | M4/M5; L | Interact with a small tethered formation; tune stiffness/damping, see heat/strain and a physically classified failure | Independent spring/damper/recoil references; attachment/rest-length/fracture accounting; stiffness convergence; permutation/rapid-command tests; no arbitrary AU-scale reach |
+| **M7 — Remote photon coupling** | M4/M5; L | Aim a finite beam and attempt a slow-target momentum change, showing pointing, flight time, delivered versus wasted power and heating | Emission/absorption/reflection and source boundary audit; P/c limits; aperture/line-of-sight and resource sharing; finite propagation; explicitly infeasible high-speed fixture; mechanism-review approval |
+| **M8 — Detection, estimation and predictive display** | M3/M5; M/L; may overlap M6/M7 after contracts stabilize | Toggle truth/observed/estimated/predicted paths; identify a noisy or delayed incoming object | Seeded sensors, uncertainty and missed observations; independent estimator validation; clear truth-access policy labeling; stale prediction rejection; mission rewarding useful observation strategy |
+| **M9 — Coordinated interception and braking** | M5, M8 and a validated actuator/coupling path; L | Assign a small cloud, preview a feasible plan, run it and inspect why it succeeds, saturates or fails | Common-snapshot proposals, deterministic conflict resolution, resource/communications bounds, no-order-bias tests; constrained replanning; abort/reserve logic; no hidden access to truth |
+| **M10 — Secure-trajectory campaign and research workbench** | M3–M9; L | A campaign comparing no control, feasible funded control and infeasible arrivals; reproducible strategy comparisons | Declared target orbit/region, dwell horizon and safety criteria; no “captured” from two-body energy alone; replay/export of complete experiments; uncertainty ensembles and falsifiable objectives; human-reviewed findings |
+| **M11 — Catalog breadth, usability and release candidate** | M2 onward; M/L in bounded subpacks | Curated major moons/dwarf packs, presets, tutorial progression, accessible inspector and a coherent mission selection screen | Exact body coverage, no barycenter double count, measured total-body budgets, UX review, performance/cancellation/security tests, backup/migration drill, license/data-notice review and operational checklist; no automatic production release |
+
+Dependency outline:
+
+```mermaid
+flowchart LR
+  M0 --> M1 --> M2 --> M3 --> M4 --> M5
+  M5 --> M6
+  M5 --> M7
+  M3 --> M8
+  M5 --> M8
+  M4 --> M9
+  M8 --> M9
+  M6 -. optional coupling path .-> M9
+  M7 -. optional coupling path .-> M9
+  M9 --> M10 --> M11
+  M2 --> M11
+```
+
+M9 need not wait for every possible mechanism: a first constrained-thrust/tether demonstration may precede a more demanding beam-interception policy. Alternative branches converge through the same command, resource and diagnostic contracts. M11 catalog packs can proceed incrementally once M2's schema is stable; they are not permission to evade dependency-specific tests.
+
+**Recommended first three priorities:** M0 baseline/legacy-source audit, M1 real 3D explorer, and M2 versioned Sun–planets–Moon scenarios. Begin M4 only after scenario/replay contracts can preserve its new physical state. Prefer that sequence over a large untestable “capture controller” rewrite.
+
