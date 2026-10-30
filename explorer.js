@@ -45,7 +45,9 @@ class ExplorerView {
   }
   buffer(data){const gl=this.gl,b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);return b;}
   project(p,w,h){const x=p[0]*Math.cos(this.az)-p[1]*Math.sin(this.az),y=p[0]*Math.sin(this.az)+p[1]*Math.cos(this.az),up=y*Math.sin(this.el)+p[2]*Math.cos(this.el),depth=this.distance+y*Math.cos(this.el)-p[2]*Math.sin(this.el);return {x:w/2+x*h/depth,y:h/2-up*h/depth,depth};}
-  pick(x,y){const hits=(this.projected||[]).filter(p=>p.depth>.1&&Math.hypot(x-p.x,y-p.y)<Math.max(9,p.radius));hits.sort((a,b)=>a.depth-b.depth);if(hits.length)this.onSelect(hits[0].id);}
+  pick(x,y){const hits=(this.projected||[]).filter(p=>p.depth>.1&&Math.hypot(x-p.x,y-p.y)<Math.max(9,p.radius));// Prefer an actual glyph hit over a nearby body's generous touch target.
+    // Within overlapping glyphs, depth resolves the visible front body.
+    hits.sort((a,b)=>{const da=Math.hypot(x-a.x,y-a.y),db=Math.hypot(x-b.x,y-b.y),ia=da<=a.radius,ib=db<=b.radius;return Number(ib)-Number(ia)||(ia&&ib?a.depth-b.depth:da-db)});if(hits.length)this.onSelect(hits[0].id);}
   render(snapshot,options){
     if(!this.gl||this.lost)return;const gl=this.gl,w=this.canvas.clientWidth,h=this.canvas.clientHeight;if(!w||!h)return;
     const d=Math.min(2,window.devicePixelRatio||1);if(this.canvas.width!==Math.round(w*d)||this.canvas.height!==Math.round(h*d)){this.canvas.width=Math.round(w*d);this.canvas.height=Math.round(h*d)}
