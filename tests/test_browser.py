@@ -288,3 +288,72 @@ def test_browser_storage_failure_is_visible_and_retry_does_not_repeat_step(chrom
     assert page.evaluate('(async()=> (await RecoveryBackup.refresh()).capsule.checkpoint.time_s)()') == 86400
     assert not errors, errors
     page.close()
+
+def test_webgl_explorer_camera_selection_and_controls(chromium, backend):
+    page = chromium.new_page(viewport={'width':1440, 'height':900})
+    errors = []
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    page.wait_for_function('explorer.projected?.length === 74')
+    assert page.evaluate('!!explorer.gl && explorer.gl.getError() === 0')
+    # Read actual WebGL pixels; a context alone does not prove bodies rendered.
+    assert page.evaluate('''() => {const gl=explorer.gl,p=new Uint8Array(can.width*can.height*4);gl.readPixels(0,0,can.width,can.height,gl.RGBA,gl.UNSIGNED_BYTE,p);let lit=0;for(let i=0;i<p.length;i+=4)if(p[i]>50&&p[i+1]>50)lit++;return lit>200}''')
+    initial = state(page.context, backend.url)
+    home = page.evaluate('[explorer.az,explorer.el,explorer.distance]')
+    box = page.locator('#view').bounding_box()
+    x,y = box['x']+box['width']/2,box['y']+box['height']/2
+    page.mouse.move(x,y);page.mouse.down();page.mouse.move(x+100,y+70,steps=8);page.mouse.up()
+    assert page.evaluate('[explorer.az,explorer.el,explorer.distance]') != home
+    page.mouse.wheel(0,-150)
+    page.wait_for_function('explorer.distance < 13')
+    # Viewing never mutates backend physical state.
+    assert state(page.context, backend.url) == initial
+    page.locator('#cameraReset').click()
+    assert page.evaluate('[explorer.az,explorer.el,explorer.distance]') == home
+    page.locator('#view').scroll_into_view_if_needed()
+    box = page.locator('#view').bounding_box()
+    earth = page.evaluate('explorer.projected.find(p=>p.id===1)')
+    page.mouse.click(box['x']+earth['x'],box['y']+earth['y'])
+    expect(page.locator('#inspection')).to_contain_text('Earth • planet')
+    expect(page.locator('#inspection')).to_contain_text('Mass: 5.972200e+24 kg')
+    page.locator('#objects').select_option('2')
+    expect(page.locator('#inspection')).to_contain_text('Cloud 1 • cloud')
+    page.locator('#showCloud').uncheck()
+    page.wait_for_function('explorer.projected.length === 2')
+    page.locator('#showCloud').check()
+    page.locator('#rate').select_option('604800')
+    page.locator('#play').click()
+    page.wait_for_function('snapshot.time_s >= 604800')
+    page.locator('#play').click()
+    page.wait_for_function('!busy')
+    paused = state(page.context, backend.url)
+    page.wait_for_timeout(1300)
+    assert state(page.context, backend.url) == paused
+    assert paused['time_s'] % 604800 == 0
+    page.locator('#reset').click()
+    expect(page.locator('#state')).to_contain_text('t=0.00 days')
+    page.wait_for_function('!busy')
+    reset = state(page.context, backend.url)
+    assert reset['bodies'] == initial['bodies']
+    assert not page.evaluate('running')
+    expect(page.locator('#inspection')).to_contain_text('Click a body')
+    ARTIFACTS.mkdir(exist_ok=True)
+    page.locator('#objects').select_option('1')
+    page.screenshot(path=str(ARTIFACTS/'explorer-3d-desktop.png'),full_page=True)
+    page.set_viewport_size({'width':390,'height':844})
+    page.screenshot(path=str(ARTIFACTS/'explorer-3d-mobile.png'),full_page=True)
+    assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+    assert not errors, errors
+    page.close()
+
+
+def test_webgl_unavailable_inspection_remains_usable(chromium, backend):
+    page = chromium.new_page()
+    page.add_init_script('''const get=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type,...args){return type==='webgl'?null:get.call(this,type,...args)}''')
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    expect(page.locator('#renderStatus')).to_contain_text('WebGL unavailable')
+    page.locator('#objects').select_option('1')
+    expect(page.locator('#inspection')).to_contain_text('Earth • planet')
+    page.close()

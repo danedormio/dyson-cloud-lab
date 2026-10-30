@@ -173,6 +173,11 @@ def create_app(store=None):
     def browser_frontend():
         return FileResponse(Path(__file__).with_name("rebound.html"))
 
+    @app.get("/explorer.js")
+    def explorer_client():
+        return FileResponse(Path(__file__).with_name("explorer.js"), media_type="text/javascript",
+                            headers={"Cache-Control": "no-cache"})
+
     @app.get("/recovery.js")
     def recovery_client():
         return FileResponse(Path(__file__).with_name("recovery.js"), media_type="text/javascript",
