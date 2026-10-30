@@ -4,6 +4,8 @@
 
 Prepared October 23, 2026. This document authorizes nothing by itself. No milestone code, automation, hosting configuration, production merge, deployment, permission change, or purchase has been made. The proposed implementation continues the existing REBOUND foundation and Skunkworks interface.
 
+**Workflow policy update — October 30, 2026:** For previously authorized tasks, Codex may merge its own qualifying PRs into `foundation/rebound-ci` under the [AGENTS development integration gates](../AGENTS.md#development-integration--standing-owner-authorization-2026-10-30). Earlier per-PR owner-merge wording is superseded for that branch only. Task/scientific approval, independent scrutiny, exact-head CI, branch protections, Skunkworks deployment-effect checks and durable checkpoints remain required. Production `main`, public release, new services/costs/permissions and unattended or parallel autonomous work remain separately authorized. This policy-transition PR stays unmerged for owner review; this update does not authorize the proposed milestones or rewrite their historical evidence.
+
 ## 1. Decision summary
 
 Build a gamified citizen-science future-civilization design sandbox around one auditable physical engine. The central player activity is to **observe → infer → design → predict → coordinate → act → measure → compare**, with conservation and engineering constraints visible throughout.
@@ -23,7 +25,7 @@ Recommended choices, subject to approval:
 | Control development | Observe/predict-only first, single-agent manual/automatic second, coordinated policies third | Makes failure diagnosis and physical validation independent |
 | Product experience | Explorer, engineering missions and research views over the same engine | Gameplay does not acquire different laws of physics |
 | Persistence | Preserve SQLite, browser backups, private recovery files and deployment-key contract | No new paid service; extend state coverage rather than replace it |
-| Daily work | One explicitly approved task, bounded implementation/testing, draft PR, report, then owner decision | Useful autonomy without autonomous scope growth or production changes |
+| Daily work | One explicitly approved task, bounded implementation/testing, draft PR, standing development integration gates, checkpoint/report, then stop | Review-only tasks stay unmerged; next task and production remain separately authorized |
 | Automation | Start with existing interactive Codex + CI; separately approve scheduling/report wiring | No unconfigured promise of overnight work or morning delivery |
 
 **Not a completion promise:** arbitrary interstellar objects cannot necessarily be captured by plausible equipment. The game must allow the scientifically correct outcome “infeasible within these resources.”
@@ -304,7 +306,7 @@ Every force/control increment requires at least two refinements of integration/c
 
 CI lanes should separately report physics, UI/UX, integration/recovery and, when affordable, a bounded benchmark/scheduled research lane. Store per-run counts, failures, version/target, logs, screenshots and model-specific artifacts. An independent executable calculation or analytic reference is needed for each new mechanism; tests that call the same implementation twice are not independent validation.
 
-A completed increment includes: reproducible scenario, documented tolerances, passing required gates, reviewed actual interactions/screenshots, no unexplained regression, recovery compatibility, operator notes and an unmerged reviewable PR. At most three code-repair iterations per task; if still blocked, preserve evidence and report rather than weaken tests.
+A completed increment includes: reproducible scenario, documented tolerances, passing required gates, reviewed actual interactions/screenshots, no unexplained regression, recovery compatibility, operator notes and a reviewable PR with either verified development integration under AGENTS or explicit unmerged review-only/blocked status. At most three code-repair iterations per task; if still blocked, preserve evidence and report rather than weaken tests.
 
 ## 9. Implementation roadmap: substantial, playable increments
 
@@ -355,7 +357,7 @@ The owner approves a concrete task within an increment, not an unrestricted obje
 - Issue ID, base branch/SHA, objective and visible interaction to deliver.
 - Allowed files/subsystems, assumptions, required tests/tolerances and existing baselines.
 - Maximum attempts (three repair iterations), time/compute/token/run budgets and cancellation conditions.
-- Allowed actions: isolated development branch, implementation, tests and draft PR/report. Merges, hosting/deploy actions, permissions, new costs and licensing remain separately gated.
+- Allowed actions: isolated development branch, implementation, tests and draft PR/report within approved scope. Qualifying own PRs may integrate into foundation/rebound-ci only under the standing AGENTS gates; review-only tasks stay unmerged. Production merges, hosting/configuration changes, permissions, new costs and licensing remain separately gated.
 - Whether an update to the existing Skunkworks service is authorized, exactly which service/ref, and its rollback boundary.
 
 Suggested GitHub state machine: `proposed → approved-for-agent → in-progress → ready-for-review | blocked → accepted/revise`. The labels are a proposed authorization mechanism; **no labels, bots or triggers were configured in this design task**. A scheduler must verify an owner-origin approval against the recorded scope, not treat arbitrary issue text or a model's recommendation as authority.
@@ -365,7 +367,7 @@ Suggested GitHub state machine: `proposed → approved-for-agent → in-progress
 1. Read approved task, repository instructions and current branch/PR state; preserve user changes. Start from current `foundation/rebound-ci` or the explicitly approved feature base. Use the existing isolated checkout; no worktree is required for cloud tasks.
 2. Establish the measured baseline and a concise acceptance contract. Inspect the actual legacy code before porting it.
 3. Implement one coherent task; run focused tests, then all required physics/UI/integration gates. Examine failures and screenshots, with at most three repairs. Record disabled/skipped/unrun checks separately.
-4. Prepare a draft PR with reproducible scenario, scientific assumptions, risks, images/video where useful and real CI URLs for the exact head SHA. No automatic merge after green CI.
+4. Prepare a draft PR with reproducible scenario, scientific assumptions, risks, images/video where useful and real CI URLs for the exact head SHA. Green CI alone is insufficient: apply every standing AGENTS gate before any development merge, verify merged state/post-merge checks and checkpoint the result. Review-only/ineligible PRs remain unmerged.
 5. Provide a playable preview **when feasible and authorized**: the existing Skunkworks URL at a verified deployed SHA, with cold-start/readiness instructions and a specific interaction checklist. If that preview would require a deploy not yet approved, provide local-run instructions, a signed/private-safe scenario and video/screenshots instead. Do not invent a localhost public preview URL.
 6. Deliver the concise report and two or three proposed next priorities. The owner can accept, revise or approve the next bounded task. Finish an already-approved task autonomously; do not silently cross into an unapproved next objective.
 
