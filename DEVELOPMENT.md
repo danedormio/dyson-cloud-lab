@@ -1,6 +1,6 @@
 # AI-assisted development process — approved tasks, gated integration
 
-The owner's standing development merge authorization (2026-10-30) is implemented in [AGENTS.md](AGENTS.md#development-integration--standing-owner-authorization-2026-10-30). It permits Codex to merge its own qualifying PRs into `foundation/rebound-ci` for previously approved tasks without a separate owner merge click. All integration gates there apply; task scope and production/public release approval remain separate. This policy-transition PR is review-only and must remain unmerged.
+The owner's standing development merge authorization (2026-10-30) is implemented in [AGENTS.md](AGENTS.md#development-integration--standing-owner-authorization-2026-10-30). It permits Codex to merge its own qualifying PRs into `foundation/rebound-ci` for previously approved tasks without a separate owner merge click. All integration gates there apply; task scope and production/public release approval remain separate. Review-only PRs remain unmerged until their specifically required review and authorization are complete.
 
 ## Desired architecture
 - REBOUND IAS15 owns **one physical N-body world**: Sun, Earth, planets, clouds, tracked incoming objects. Sun moves under the same mutual gravity rules as everything else.
