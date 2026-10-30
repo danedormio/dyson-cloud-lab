@@ -1,4 +1,5 @@
 """Isolate persistent data and support both CI Chromium and installed Chromium."""
+from contextlib import contextmanager
 import os
 from pathlib import Path
 import secrets
@@ -13,11 +14,25 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@contextmanager
+def isolated_sessions(app, store):
+    # State stores dynamic attributes outside __dict__. pytest 9.2's setattr
+    # undo deletes such an attribute instead of restoring its original value.
+    # Read first so a missing application initialization still fails loudly.
+    original = app.state.sessions
+    app.state.sessions = store
+    try:
+        yield
+    finally:
+        app.state.sessions = original
+
+
 @pytest.fixture(autouse=True)
-def isolated_api(tmp_path, monkeypatch):
+def isolated_api(tmp_path):
     from server import app
     from sessions import SessionStore
-    monkeypatch.setattr(app.state, "sessions", SessionStore(tmp_path / "sessions.sqlite3"))
+    with isolated_sessions(app, SessionStore(tmp_path / "sessions.sqlite3")):
+        yield
 
 
 class Backend:

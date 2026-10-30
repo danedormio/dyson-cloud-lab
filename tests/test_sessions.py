@@ -10,6 +10,46 @@ from server import create_app
 from sessions import COOKIE_NAME, MAX_CHECKPOINT_BYTES, SessionStore
 
 
+def test_session_fixture_restores_store_between_overrides_and_after_error(tmp_path):
+    from conftest import isolated_sessions
+    from server import app
+
+    original_state = app.state
+    original_store = app.state.sessions
+    original_client = TestClient(app)
+    expected = original_client.get('/api/state').json()
+    stores = [SessionStore(tmp_path / f'isolated-{i}.sqlite3') for i in range(2)]
+    for store in stores:
+        with isolated_sessions(app, store):
+            assert app.state is original_state
+            assert app.state.sessions is store
+            client = TestClient(app)
+            assert client.post('/api/reset', json={'cloud_count': 0}).status_code == 200
+            assert client.post('/api/step', json={'seconds': DAY}).status_code == 200
+            assert client.get('/api/state').json()['time_s'] == DAY
+        assert app.state.sessions is original_store
+        assert original_client.get('/api/state').json() == expected
+
+    with pytest.raises(RuntimeError, match='simulated test failure'):
+        with isolated_sessions(app, stores[0]):
+            raise RuntimeError('simulated test failure')
+    assert app.state is original_state
+    assert app.state.sessions is original_store
+    assert original_client.get('/api/state').json() == expected
+
+
+def test_session_fixture_rejects_missing_application_initialization(tmp_path):
+    from conftest import isolated_sessions
+    from server import create_app
+
+    app = create_app(SessionStore(tmp_path / 'initialized.sqlite3'))
+    del app.state.sessions  # Deliberately broken initialization must not be repaired by the fixture.
+    with pytest.raises(AttributeError, match='sessions'):
+        with isolated_sessions(app, SessionStore(tmp_path / 'replacement.sqlite3')):
+            pytest.fail('fixture concealed missing application session state')
+    assert not hasattr(app.state, 'sessions')
+
+
 def client_pair(tmp_path, **kw):
     store = SessionStore(tmp_path / "worlds.sqlite3", **kw)
     app = create_app(store)
