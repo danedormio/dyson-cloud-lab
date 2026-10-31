@@ -1,7 +1,34 @@
 # Dyson Cloud Laboratory
 
-Interactive exploratory simulator for coordinated solar-orbiting bodies. **Prototype v0.14** uses a custom JavaScript velocity-Verlet gravitational integrator, **not REBOUND**. Coupling is idealized; do not interpret outcomes as experimentally validated capabilities.
+**Production website:** https://dyson-cloud-lab.onrender.com
 
-The browser simulator is served from `index.html`. Its source and deployment live in this repository; Render will automatically deploy updates from `main`.
+**Current public version:** gravity-only JavaScript preview, not the full earlier coupling/capture simulator.
 
-Current research priorities: diagnose rapid-launch capture failures and interaction-order bias; independent reference comparisons and eventual REBOUND integration; comprehensive network tests.
+## Next-generation physics foundation — development branch
+
+This branch introduces **REBOUND IAS15**. The Sun, Earth, 1 kg cloud elements and 1 kg incoming elements are all ordinary massive bodies in one REBOUND simulation. The Sun is not fixed. Initial solar-system test conditions are simplified circular Earth conditions, not real ephemerides. Coupling and orbital-capture actuation remain **disabled** pending separate validation.
+
+The new backend is **not connected to the production website yet**. Everything here is a proposed change awaiting approval.
+
+Install and run, from this repository:
+
+```bash
+python -m pip install -r requirements.txt
+uvicorn server:app --host 0.0.0.0 --port 8000
+```
+
+Sessions are private and saved transactionally in local SQLite. Browser backups and downloadable private recovery files also survive server database loss. Configure a stable `DYSON_RECOVERY_KEY` in the hosting runtime before relying on redeploy recovery; this requires no paid service. See [session ownership, recovery, limits and verification](docs/SESSIONS.md). Existing API clients must retain their session cookie.
+
+API endpoints: `POST /api/recover`, `POST /api/session`, `DELETE /api/session`, `GET /api/checkpoint`, `POST /api/restore`, `GET /health`, `GET /api/state`, `POST /api/reset`, `POST /api/launch`, `POST /api/step`.
+
+Checks run in GitHub Actions on a real REBOUND install and a headless Chromium browser:
+
+```bash
+python -m pytest tests/test_rebound.py tests/test_sessions.py tests/test_recovery.py -v
+python -m playwright install chromium
+python -m pytest tests/test_browser.py -v
+```
+
+[Development and approval-gate protocol](DEVELOPMENT.md).
+
+**Scientific caution:** REBOUND integrates Newtonian gravity, but does not validate hypothetical coupling capabilities. Actuation, recoil, energy/momentum transfers, heat, orbital objectives, and coordinated control require independent implementations and tests.
