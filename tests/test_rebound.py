@@ -133,3 +133,18 @@ def test_legacy_checkpoint_keeps_its_original_coordinates():
     restored.restore(legacy)
     assert restored.checkpoint()['scenario_version'] == 1
     assert restored.state() == original.state()
+
+
+def test_explorer_rate_steps_match_direct_backend_and_reset():
+    # All UI rate values use the existing bounded step contract. Presentation
+    # must not introduce a second propagator or alter the reset fixture.
+    for seconds in (3600, DAY, 7*DAY):
+        world = CloudWorld(8)
+        initial = world.state()
+        direct = CloudWorld(8)
+        direct.sim.integrate(seconds, exact_finish_time=1)
+        stepped = world.step(seconds)
+        assert stepped == direct.state()
+        assert abs(stepped['energy_relative_drift']) < 1e-8
+        assert math.hypot(*stepped['momentum_kg_ms'])/stepped['total_mass_kg'] < 1e-8
+        assert world.reset(8) == initial
