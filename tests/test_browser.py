@@ -7,6 +7,8 @@ import sys
 import time
 import urllib.request
 
+import pytest
+
 from playwright.sync_api import expect
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -356,4 +358,32 @@ def test_webgl_unavailable_inspection_remains_usable(chromium, backend):
     expect(page.locator('#renderStatus')).to_contain_text('WebGL unavailable')
     page.locator('#objects').select_option('1')
     expect(page.locator('#inspection')).to_contain_text('Earth • planet')
+    page.close()
+
+
+@pytest.mark.parametrize("revision", ["0123456789abcdef0123456789abcdef01234567", None])
+def test_build_indicator_matches_running_server(chromium, backend, revision):
+    backend.stop()
+    backend.build_revision = revision
+    backend.start()
+    page = chromium.new_page(viewport={"width": 1440, "height": 900})
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(backend.url)
+    expect(page.locator("#wake")).to_be_hidden(timeout=15000)
+    health = page.request.get(backend.url + "/health")
+    assert health.ok
+    reported = health.json()["revision"]
+    assert reported == (revision or "unknown")
+    # A changed/hard-coded/truncated UI revision fails this API/UI contract.
+    expect(page.locator("#buildVersion")).to_have_text("Build: " + reported)
+    page.locator("#once").click()
+    expect(page.locator("#state")).to_contain_text("t=1.00 days")
+    expect(page.locator("#buildVersion")).to_have_text("Build: " + reported)
+    ARTIFACTS.mkdir(exist_ok=True)
+    label = "known" if revision else "unknown"
+    page.screenshot(path=str(ARTIFACTS / ("build-version-" + label + ".png")), full_page=True)
+    page.set_viewport_size({"width": 390, "height": 844})
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    assert not errors, errors
     page.close()

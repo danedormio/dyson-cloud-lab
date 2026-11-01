@@ -44,3 +44,26 @@ WebGL-unavailable inspection and all existing private recovery scenarios. Physic
 checks compare all UI rate values with direct IAS15 integration, energy/momentum
 thresholds and exact deterministic reset. CI success is software regression
 evidence, not validation of new scientific capabilities.
+
+## Staging build identity (Issue #10)
+
+The header shows `Build: <full commit SHA>` from the server's latest successful
+`/health` response, or `Build: unknown`. Render supplies `RENDER_GIT_COMMIT` by
+default ([Render reference](https://render.com/docs/environment-variables)).
+The server captures it at application creation and accepts only a full 40-digit
+hexadecimal Git SHA, normalized to lowercase. Missing, empty, abbreviated or
+malformed values become `unknown`; no checkout lookup, guessed revision or
+arbitrary environment contents are exposed. Health responses use `no-store` and
+reading the revision neither creates a session nor changes simulation state.
+
+The indicator refreshes through existing readiness/reconnect checks. It reports
+server metadata, not an independent attestation, a guarantee that an old browser
+loaded identical frontend assets, or a promise that every replica has the same
+revision during rollout. An unreachable server cannot supply a new revision.
+Outside Render, operators may supply the same non-secret variable for a known
+build; otherwise `unknown` is intentional. No hosting configuration is changed.
+
+API tests cover full/uppercase/missing/empty/abbreviated/unsafe values and a stable
+per-app revision. Real Chromium checks compare both known and unknown displays
+against the running server response, retain the indicator after a physics step,
+and check mobile width. The full existing regression suites remain required.

@@ -266,3 +266,29 @@ def test_eight_cloud_reset_and_integration_are_valid(tmp_path):
     assert stepped.status_code == 200
     assert math.isfinite(stepped.json()['gravitational_energy_j'])
     assert abs(stepped.json()['energy_relative_drift']) < 1e-8
+
+
+@pytest.mark.parametrize("configured, expected", [
+    (None, "unknown"),
+    ("", "unknown"),
+    ("abcdef0", "unknown"),
+    ("0123456789abcdef0123456789abcdef01234567", "0123456789abcdef0123456789abcdef01234567"),
+    ("ABCDEF0123456789ABCDEF0123456789ABCDEF01", "abcdef0123456789abcdef0123456789abcdef01"),
+    ("<script>alert(1)</script>", "unknown"),
+])
+def test_health_build_revision_is_full_safe_and_read_only(tmp_path, monkeypatch, configured, expected):
+    if configured is None:
+        monkeypatch.delenv("RENDER_GIT_COMMIT", raising=False)
+    else:
+        monkeypatch.setenv("RENDER_GIT_COMMIT", configured)
+    store = SessionStore(tmp_path / "version.sqlite3")
+    client = TestClient(create_app(store))
+    # The revision belongs to this app instance, not later environment changes.
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "f" * 40)
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json()["revision"] == expected
+    assert response.headers["cache-control"] == "no-store"
+    assert not response.cookies
+    with store.connect() as db:
+        assert db.execute("SELECT count(*) FROM sessions").fetchone()[0] == 0

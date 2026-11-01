@@ -45,9 +45,14 @@ class Backend:
         self.logs = tmp_path / "backend.log"
         self.proc = None
         self.recovery_key = secrets.token_hex(32)
+        self.build_revision = None
 
     def start(self):
         env = {**os.environ, "DYSON_SESSION_DB": str(self.db), "DYSON_RECOVERY_KEY": self.recovery_key or ""}
+        # Isolate build provenance from the runner's own environment.
+        env.pop("RENDER_GIT_COMMIT", None)
+        if self.build_revision is not None:
+            env["RENDER_GIT_COMMIT"] = self.build_revision
         self.log = self.logs.open("ab")
         self.proc = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "server:app", "--host", "127.0.0.1", "--port", str(self.port)],
