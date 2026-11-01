@@ -1,6 +1,7 @@
 """Session-isolated REBOUND service. Production deployment remains approval-gated."""
 import json
 import os
+import re
 from pathlib import Path
 import sqlite3
 
@@ -93,6 +94,10 @@ def create_app(store=None):
     app.state.sessions = store or SessionStore(os.environ.get(
         "DYSON_SESSION_DB", str(Path(__file__).parent / ".session-data" / "sessions.sqlite3")))
     app.add_middleware(BoundedAPI)
+    # Render supplies the deployed source revision. Never infer it from a
+    # mutable checkout, expose arbitrary environment text, or invent a SHA.
+    revision = os.environ.get("RENDER_GIT_COMMIT", "")
+    revision = revision.lower() if re.fullmatch(r"[0-9a-fA-F]{40}", revision) else "unknown"
 
     @app.exception_handler(RequestValidationError)
     async def invalid_input(request, exc):
@@ -114,13 +119,14 @@ def create_app(store=None):
         return result
 
     @app.get("/health")
-    def health():
+    def health(response: Response):
         try:
             with app.state.sessions.connect() as db:
                 db.execute("SELECT count(*) FROM sessions").fetchone()
         except sqlite3.Error as exc:
             raise HTTPException(503, "Session storage unavailable") from exc
-        return {"status": "ok", "engine": "REBOUND IAS15",
+        response.headers["Cache-Control"] = "no-store"
+        return {"status": "ok", "engine": "REBOUND IAS15", "revision": revision,
                 "recovery_available": bool(app.state.sessions.recovery_key)}
 
     @app.get("/api/state")
