@@ -8,14 +8,14 @@ def test_simple_identity_and_forget_preserve_legacy_world(tmp_path):
     client=TestClient(create_app(SessionStore(tmp_path/'identity.sqlite3')))
     old=client.get('/api/state').json();legacy_cookie=client.cookies.get('dyson_session')
     simple=client.post('/api/simple/session',json={}).json()
-    assert simple['version']=='minimal-cloud-v1.1'
-    assert client.cookies.get('dyson_simple_session')!=legacy_cookie
+    assert simple['version']=='minimal-cloud-v1.3'
+    assert client.cookies.get('dyson_simple_session_v13')!=legacy_cookie
     client.post('/api/simple/launch',json={})
     assert client.get('/api/state').json()['bodies']==old['bodies']
     assert client.cookies.get('dyson_session')==legacy_cookie
     assert client.request('DELETE','/api/simple/session',json={}).status_code==200
     assert client.cookies.get('dyson_session')==legacy_cookie
-    assert client.cookies.get('dyson_simple_session') is None
+    assert client.cookies.get('dyson_simple_session_v13') is None
     assert client.get('/api/state').json()['bodies']==old['bodies']
 
 
@@ -27,3 +27,16 @@ def test_simple_recovery_retains_owner_verification(tmp_path):
     denied=b.post('/api/simple/recover',json={'credential':'D'*43,'capsule':first['recovery']})
     assert denied.status_code==403
     assert b.get('/api/simple').json()['bodies']==second['bodies']
+
+
+def test_step_bounds_and_previous_first_light_cookie_preserved(tmp_path):
+    client=TestClient(create_app(SessionStore(tmp_path/'step.sqlite3')))
+    client.cookies.set('dyson_simple_session','Z'*43)
+    original=client.post('/api/simple/session',json={}).json()
+    assert original['time']==0
+    assert client.cookies.get('dyson_simple_session')=='Z'*43
+    for days in [0,3,float('inf')]:
+        if days!=float('inf'):
+            assert client.post('/api/simple/step',json={'days':days}).status_code==422
+    assert client.get('/api/simple').json()['time']==0
+    assert abs(client.post('/api/simple/step',json={'days':1/12}).json()['time']-1/12)<1e-10

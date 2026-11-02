@@ -102,6 +102,7 @@ class MinimalLaunch(InputModel):
     offset: float = Field(default=.65, ge=-1.5, le=1.5)
     angle: float = Field(default=0, ge=-60, le=60)
     enabled: bool = True
+    days: float = Field(default=2., ge=1/12, le=2.)
 
 
 class SessionRequest(InputModel):
@@ -228,15 +229,15 @@ def create_app(store=None):
             if cloud.packet is not None:
                 raise ValueError("Reset before another launch")
             cloud = CoordinatedCloud()  # identical orbital phase for on/off comparison
-            cloud.launch(**payload.model_dump())
+            cloud.launch(**payload.model_dump(exclude={"days"}))
         elif action == "step":
-            cloud.advance(2.)
+            cloud.advance(payload.days)
         result = cloud.state()
         w.minimal_snapshot = cloud.snapshot()
         return result
 
     # Separate browser identity keeps old workbench recovery from gating First Light.
-    minimal_cookie = "dyson_simple_session"
+    minimal_cookie = "dyson_simple_session_v13"
 
     @app.post("/api/simple/session")
     def minimal_bootstrap(payload: SessionRequest, request: Request, response: Response):

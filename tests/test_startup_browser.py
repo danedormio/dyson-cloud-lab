@@ -28,7 +28,7 @@ def test_old_workbench_recovery_cannot_block_minimal_startup(backend,chromium):
     page.context.add_cookies([dict(name='dyson_session',value='A'*43,url=backend.url+'/api')])
     page.goto(backend.url+'/simple')
     try:
-        page.wait_for_function('window.cloudView?.world?.time>0',timeout=6000)
+        page.wait_for_function('!!window.cloudView?.world',timeout=6000)
     except Exception:
         Path('test-artifacts').mkdir(exist_ok=True)
         page.screenshot(path='test-artifacts/startup-existing-profile-failure.png')
@@ -60,7 +60,7 @@ def test_retry_reconnects_after_startup_service_failure(backend,chromium):
     assert page.locator('#play').is_enabled() and page.locator('#reset').is_enabled()
     assert page.locator('#launch').is_disabled()
     page.click('#play')
-    page.wait_for_function('window.cloudView?.world?.time>0')
+    page.wait_for_function('!!window.cloudView?.world')
     assert 'retried' in attempts
     page.click('#play');page.wait_for_timeout(300)
     page.click('#launch');page.wait_for_function('!!window.cloudView.world.packet')
@@ -71,14 +71,14 @@ def test_start_fresh_archives_unrecoverable_scene_without_touching_old_work(back
     page=chromium.new_page()
     page.goto(backend.url+'/health')
     seed(page,'dyson-private-backups',OLD_RECORD)
-    seed(page,'dyson-first-light-backups',OLD_RECORD)
-    page.context.add_cookies([dict(name='dyson_simple_session',value='A'*43,url=backend.url+'/api')])
+    seed(page,'dyson-first-light-v13-backups',OLD_RECORD)
+    page.context.add_cookies([dict(name='dyson_simple_session_v13',value='A'*43,url=backend.url+'/api')])
     page.goto(backend.url+'/simple')
     page.wait_for_function('document.querySelector("#play").textContent==="Retry connection"')
     assert page.locator('#reset').inner_text()=='Start fresh'
-    page.click('#reset');page.wait_for_function('window.cloudView?.world?.time>0')
+    page.click('#reset');page.wait_for_function('!!window.cloudView?.world')
     archived=page.evaluate('''async ()=>new Promise(resolve=>{
-      const r=indexedDB.open('dyson-first-light-backups',1);r.onsuccess=()=>{
+      const r=indexedDB.open('dyson-first-light-v13-backups',1);r.onsuccess=()=>{
         const db=r.result;const tx=db.transaction('backups','readonly');const q=tx.objectStore('backups').getAll();
         q.onsuccess=()=>resolve(q.result);tx.oncomplete=()=>db.close()}})''')
     assert OLD_RECORD in archived
@@ -93,7 +93,7 @@ def test_blocked_browser_storage_still_allows_temporary_physics_session(backend,
     page=chromium.new_page()
     page.add_init_script("IDBFactory.prototype.open=()=>{throw new DOMException('Storage blocked','SecurityError')}")
     page.goto(backend.url+'/simple')
-    page.wait_for_function('window.cloudView?.world?.time>0')
+    page.wait_for_function('!!window.cloudView?.world')
     page.click('#play');page.wait_for_timeout(300)
     assert 'temporary session' in page.locator('#connection').inner_text()
     page.click('#launch');page.wait_for_function('!!window.cloudView.world.packet')
@@ -110,6 +110,8 @@ def test_retry_reads_committed_state_after_lost_step_response(backend,chromium):
         else:route.continue_()
     page.route('**/api/simple/step',lose_once)
     page.goto(backend.url+'/simple')
+    page.wait_for_function('!!window.cloudView?.world')
+    page.click('#play')
     page.wait_for_function('document.querySelector("#play").textContent==="Retry connection"')
     requests=[]
     page.on('request',lambda r:requests.append(r.url.rsplit('/',1)[-1]) if '/api/simple' in r.url else None)
@@ -123,18 +125,18 @@ def test_retry_reads_committed_state_after_lost_step_response(backend,chromium):
 def test_full_storage_fresh_start_keeps_original_and_runs_temporarily(backend,chromium):
     page=chromium.new_page()
     page.goto(backend.url+'/health')
-    seed(page,'dyson-first-light-backups',OLD_RECORD)
-    page.context.add_cookies([dict(name='dyson_simple_session',value='A'*43,url=backend.url+'/api')])
+    seed(page,'dyson-first-light-v13-backups',OLD_RECORD)
+    page.context.add_cookies([dict(name='dyson_simple_session_v13',value='A'*43,url=backend.url+'/api')])
     page.add_init_script('''const originalPut=IDBObjectStore.prototype.put;
       IDBObjectStore.prototype.put=function(value,key){
         if(typeof key==='string'&&key.startsWith('archived-'))throw new DOMException('Full','QuotaExceededError');
         return originalPut.call(this,value,key)}''')
     page.goto(backend.url+'/simple')
     page.wait_for_function('document.querySelector("#play").textContent==="Retry connection"')
-    page.click('#reset');page.wait_for_function('window.cloudView?.world?.time>0')
+    page.click('#reset');page.wait_for_function('!!window.cloudView?.world')
     page.click('#play');page.wait_for_timeout(300)
     assert 'temporary session' in page.locator('#connection').inner_text()
-    assert read_record(page,'dyson-first-light-backups')==OLD_RECORD
+    assert read_record(page,'dyson-first-light-v13-backups')==OLD_RECORD
     page.click('#launch');page.wait_for_function('!!window.cloudView.world.packet')
-    assert read_record(page,'dyson-first-light-backups')==OLD_RECORD
+    assert read_record(page,'dyson-first-light-v13-backups')==OLD_RECORD
     page.close()

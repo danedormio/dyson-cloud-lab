@@ -22,11 +22,21 @@ class CoordinatedCloud:
         self.sim=rebound.Simulation(); self.sim.units=('m','s','kg'); self.sim.integrator='ias15'
         self.sim.ri_ias15.epsilon=1e-10; self.sim.dt=DT; self.sim.ri_ias15.min_dt=1.
         self.sim.add(m=SUN)
-        # Three low-mass rings; 48 resolved stations, not 48 microscopic satellites.
+        # Deterministic volume-filling shell; independent orbital planes.
+        # Same resolved mass/resource budget as v1.1; no decorative fake bodies.
+        import random
+        rng=random.Random(122333)
+        self.reference_radii=[]
         for i in range(N):
-            r=(.8+.4*(i//16))*AU; a=2*math.pi*(i%16)/16+.19*(i//16)+.02*math.sin(3.7*i)
-            v=math.sqrt(self.sim.G*SUN/r)
-            self.sim.add(m=NODE_MASS,x=r*math.cos(a),y=r*math.sin(a),vx=-v*math.sin(a),vy=v*math.cos(a))
+            r=(.8+.8*(i+rng.random())/N)*AU
+            z=2*rng.random()-1; phi=2*math.pi*rng.random()
+            radial=[math.sqrt(1-z*z)*math.cos(phi),math.sqrt(1-z*z)*math.sin(phi),z]
+            axis=[rng.uniform(-1,1) for _ in range(3)]
+            tangent=[radial[1]*axis[2]-radial[2]*axis[1],radial[2]*axis[0]-radial[0]*axis[2],radial[0]*axis[1]-radial[1]*axis[0]]
+            v=math.sqrt(self.sim.G*SUN/r); length=norm(tangent)
+            self.sim.add(m=NODE_MASS,**dict(zip(('x','y','z'),[r*x for x in radial])),
+                         **dict(zip(('vx','vy','vz'),[v*x/length for x in tangent])))
+            self.reference_radii.append(r)
         self.sim.move_to_com()
         self.stores=[.5*CAPACITY]*N; self.heat=[0.]*N; self.activity=[0.]*N
         self.mode='Ready'; self.reason='Aim a packet, then launch. Compare the same arrival with coordination off.'
@@ -96,7 +106,7 @@ class CoordinatedCloud:
         sun=self.sim.particles[0]
         rb=sub(vec(b),vec(sun)); vb=sub(vel(b),vel(sun)); radius=norm(rb)
         proposed=[v-impulse*x/b.m for v,x in zip(vb,u)]
-        initial_radius=(.8+.4*(store_id//16))*AU
+        initial_radius=self.reference_radii[j-1]
         reference=-self.sim.G*SUN/(2*initial_radius)
         specific=dot(proposed,proposed)/2-self.sim.G*SUN/radius
         if abs((specific-reference)/reference)>.05: return False
@@ -145,9 +155,12 @@ class CoordinatedCloud:
         # Nearest-neighbor central damping spreads relative radial disturbance.
         # Local relative-velocity sensing only; no global instantaneous state.
         # Neighbor sensing is taken at this control tick; radio plans remain delayed.
+        positions=[vec(p) for p in self.sim.particles]
         for k in range(N):
             if now<self.plan_time+norm(vec(self.sim.particles[k+1]))/C: continue
-            i=k+1; j=(k//16)*16+(k+1)%16+1
+            i=k+1
+            j=min((n for n in range(1,N+1) if n!=i),
+                  key=lambda n:sum((a-b)**2 for a,b in zip(positions[i],positions[n])))
             a,b=self.sim.particles[i],self.sim.particles[j]
             line=sub(vec(a),vec(b)); length=norm(line)
             if length>RANGE or not length: continue
@@ -179,7 +192,7 @@ class CoordinatedCloud:
     def state(self):
         sun=self.sim.particles[0]; bodies=[]
         for i,p in enumerate(self.sim.particles):
-            bodies.append(dict(id=i,x=p.x/AU,y=p.y/AU,z=p.z/AU,vx=p.vx,vy=p.vy,mass=p.m,
+            bodies.append(dict(id=i,x=p.x/AU,y=p.y/AU,z=p.z/AU,vx=p.vx,vy=p.vy,vz=p.vz,mass=p.m,
                 active=self.activity[i-1] if 1<=i<=N else 0,
                 energy=self.stores[i-1]/CAPACITY if 1<=i<=N else None,
                 heat=self.heat[i-1]/CAPACITY if 1<=i<=N else None))
@@ -187,7 +200,7 @@ class CoordinatedCloud:
         if self.packet is not None:
             p=self.sim.particles[self.packet]; r=sub(vec(p),vec(sun)); v=sub(vel(p),vel(sun)); radius=norm(r)
             energy=dot(v,v)/2-self.sim.G*(sun.m+p.m)/radius
-            h=r[0]*v[1]-r[1]*v[0]; mu=self.sim.G*(sun.m+p.m)
+            h=norm([r[1]*v[2]-r[2]*v[1],r[2]*v[0]-r[0]*v[2],r[0]*v[1]-r[1]*v[0]]); mu=self.sim.G*(sun.m+p.m)
             ecc=math.sqrt(max(0.,1+2*energy*h*h/mu**2))
             if energy<0:
                 if self.bound_since is None:self.bound_since=self.sim.t
@@ -204,7 +217,7 @@ class CoordinatedCloud:
         residual=self.sim.energy()-self.initial_energy-self.work_total
         # Also report at packet-work scale; Sun-scale relative drift alone hides errors.
         scale=PACKET_MASS*(45000.**2)
-        return dict(version='minimal-cloud-v1.1',engine='REBOUND IAS15',time=self.sim.t/DAY,bodies=bodies,packet=packet,
+        return dict(version='minimal-cloud-v1.3',engine='REBOUND IAS15',time=self.sim.t/DAY,bodies=bodies,packet=packet,
             decision=self.mode,reason=self.reason,plan=self.plan,enabled=self.enabled,
             target_au=1.2,halted=self.halted,links=[i+1 for i,x in enumerate(self.activity) if x>.01],
             stored_j=sum(self.stores),heat_j=sum(self.heat),work_j=self.work_total,
@@ -213,7 +226,7 @@ class CoordinatedCloud:
             inventory_kg=N*NODE_MASS,inventory_earth=N*NODE_MASS/5.9722e24)
 
     def snapshot(self):
-        return dict(time=self.sim.t,bodies=[[p.m,*vec(p),*vel(p)] for p in self.sim.particles],
+        return dict(reference_radii=self.reference_radii,time=self.sim.t,bodies=[[p.m,*vec(p),*vel(p)] for p in self.sim.particles],
             **{k:getattr(self,k) for k in ('stores','heat','activity','mode','reason','enabled','packet','launch_time','bound_since','plan','plan_time','launch_state','observations','initial_energy','initial_p','initial_l','work_total','exchanged','halted')})
 
     def restore(self,saved):
@@ -224,4 +237,7 @@ class CoordinatedCloud:
             m,x,y,z,vx,vy,vz=row;sim.add(m=m,x=x,y=y,z=z,vx=vx,vy=vy,vz=vz)
         sim.t=saved['time'];self.sim=sim
         for k in self.snapshot():
-            if k not in ('time','bodies'):setattr(self,k,saved.get(k,False) if k=='halted' else saved[k])
+            if k not in ('time','bodies','reference_radii'):setattr(self,k,saved.get(k,False) if k=='halted' else saved[k])
+
+        # Older ring snapshots retain their original resource/orbit envelope.
+        self.reference_radii=saved.get('reference_radii',[(.8+.4*(k//16))*AU for k in range(N)])
