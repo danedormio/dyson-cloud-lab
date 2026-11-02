@@ -47,7 +47,9 @@ class OrbitalSandbox {
     this.stars();this.updateDraft();this.tick();
   }
   parameters(){const p={};for(const [key,id] of Object.entries(laboratory.launchFields)){const input=document.querySelector('#'+id);if(!input.checkValidity()||input.value===''||!Number.isFinite(Number(input.value)))return null;p[key]=Number(input.value)}return p}
-  fingerprint(){return snapshot?JSON.stringify([snapshot.time_s,snapshot.bodies.length,snapshot.scenario, snapshot.bodies[0].x_m,snapshot.bodies[1].x_m]):null}
+  // Every accepted state is a fresh object, including same-time replay/restore.
+  // A partial coordinate hash would miss changed arrival masses or velocities.
+  fingerprint(){return snapshot}
   updateDraft(){
     const p=this.parameters();this.previewToken++;this.preview=null;
     if(!p){this.draft=null;document.querySelector('#previewStatus').textContent='Enter valid launch values to see your draft.';return}

@@ -513,6 +513,13 @@ def test_launch_preview_stale_response_and_failure_preserve_world(chromium,backe
     page.wait_for_function('!laboratory.forecasting',timeout=30000)
     assert page.evaluate('window.sandbox.validPreview()') is None
     assert page.evaluate('JSON.stringify(snapshot.bodies)')==original
+    # Even same-time/same-population replacement must invalidate a forecast.
+    page.evaluate('window.sandbox.preview={world:snapshot,parameters:JSON.stringify(window.sandbox.parameters()),result:{positions_m:[[0,0,0]]}}')
+    assert page.evaluate('window.sandbox.validPreview()') is not None
+    page.evaluate('snapshot={...snapshot,bodies:snapshot.bodies.map((b,i)=>i===2?{...b,mass_kg:b.mass_kg*2}:b)}')
+    assert page.evaluate('window.sandbox.validPreview()') is None
+    # Restore the local observation copy; no server world was changed by this check.
+    page.evaluate('(raw)=>snapshot={...snapshot,bodies:JSON.parse(raw)}',original)
     page.route('**/api/launch-preview',lambda route:route.fulfill(status=429,content_type='application/json',body='{"detail":"quota"}'))
     page.locator('#traceLaunch').click()
     expect(page.locator('#previewStatus')).to_contain_text('allowance reached')
