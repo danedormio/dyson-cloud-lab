@@ -40,8 +40,11 @@ class Laboratory {
   async predict(id){
     this.prediction=null;const token=++this.predictionToken;
     if(id===null||!snapshot)return;
+    while(this.pending||busy||advancing){if(token!==this.predictionToken)return;await new Promise(ok=>setTimeout(ok,50))}
+    if(token!==this.predictionToken||id!==selected)return;
     const start=snapshot.time_s,count=snapshot.bodies.length;
-    try{const result=await api('/api/trajectory',{body_id:id});if(token===this.predictionToken&&id===selected&&snapshot.bodies.length===count&&snapshot.time_s>=start){this.prediction=result;this.message(`Selected trajectory: ${result.positions_m.length} actual IAS15 samples over ${(result.horizon_s/86400).toFixed(1)} days; no future control/insertion. Gold=forecast, blue=measured history.`)}}catch(error){if(token===this.predictionToken)this.message('Trajectory unavailable: '+error.message)}
+    this.forecasting=true;const work=api('/api/trajectory',{body_id:id});this.pending=work;
+    try{const result=await work;if(token===this.predictionToken&&id===selected&&snapshot.bodies.length===count&&snapshot.time_s>=start){this.prediction=result;this.message(`Selected trajectory: ${result.positions_m.length} actual IAS15 samples over ${(result.horizon_s/86400).toFixed(1)} days; no future control/insertion. Gold=forecast, blue=measured history.`)}}catch(error){if(token===this.predictionToken)this.message('Trajectory unavailable: '+error.message)}finally{if(this.pending===work){this.pending=null;this.forecasting=false}}
   }
   selectedTrail(){return (this.paths.get(selected)||[]).slice(-Number(document.querySelector('#trailLength').value));}
   inspect(){

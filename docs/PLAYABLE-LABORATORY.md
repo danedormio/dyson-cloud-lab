@@ -109,7 +109,7 @@ existing202-body ceiling remains: this restores core interaction, not the old
 
 Play renders between dense positions actually sampled by IAS15; it never
 extrapolates uncomputed physical motion. The render and committed clocks are both
-shown. Rates span1hour through2years of target simulated time per real second;
+shown. Rates restore the original1hour through20years of target simulated time per real second;
 actual throughput depends on the backend. Advance selected interval commits the
 chosen total exactly, including2years (63,115,200 seconds), using sequential
 steps of at most30days. Stop advance preserves progress after the current step;

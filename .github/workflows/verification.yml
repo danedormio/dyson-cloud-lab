@@ -39,7 +39,7 @@ jobs:
         env:
           DYSON_LIVE_SHA: ${{ github.sha }}
         run: |
-          python -m pytest tests/test_live_skunkworks.py -v
+          python -m pytest tests/test_live_skunkworks.py -vs
           test -f test-artifacts/live-skunkworks-observations.json
       - name: Keep graphical evidence
         if: always()
