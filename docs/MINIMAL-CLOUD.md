@@ -14,9 +14,9 @@ Next try 80 km/s (limited assistance) and 180 km/s (stand aside).
 
 ## Model contract
 
-- Version `minimal-cloud-v1`; SI barycentric Newtonian mutual point-mass gravity,
-  REBOUND 4 IAS15, epsilon 1e-10, initial dt 1800 seconds, minimum internal dt
-  1 second. Control is symmetric gravity/impulse/gravity splitting at 1800-second
+- Version `minimal-cloud-v1.1`; SI barycentric Newtonian mutual point-mass gravity,
+  REBOUND 4 IAS15, epsilon 1e-10, initial dt 7200 seconds, minimum internal dt
+  1 second. Control is symmetric gravity/impulse/gravity splitting at 7200-second
   ticks. Plan/sensing delays round up to a control tick. No relativistic regime.
 - Forty-eight resolved stations in three planar rings, 0.8, 1.2 and 1.6 AU;
   a deterministic small phase perturbation avoids numerically degenerate exact
@@ -45,7 +45,7 @@ Next try 80 km/s (limited assistance) and 180 km/s (stand aside).
 - Per-link force/work caps, station speed/delta-v checks, and a 5% initial
   specific-orbital-energy envelope reject unaffordable commands. These are
   controller constraints, not guaranteed long-term orbital safety. Packet approaches
-  inside 0.06 AU pause the simulation before the unresolved stellar region.
+  inside 0.08 AU pause the simulation before the unresolved stellar region.
 - Global budget screen uses estimated encounter time and impulse/energy demand.
   It selects attempt, assist, or stand aside. It is a heuristic, not an optimal
   feasibility proof. One target: near-circular prograde/retrograde motion toward
@@ -92,3 +92,15 @@ not a synchronized Git clone. Publication preserves the complete remote base
 tree and changes only intended paths through the supported GitHub workflow.
 No production, deployment configuration, permission, licensing, account, cost or
 schedule changes are included. Existing dependencies and research remain intact.
+
+## Free-host performance correction
+
+The actual hosted v1 journey exposed roughly 11-second two-day updates after
+launch on the existing free CPU allocation. Version1.1 uses an explicit two-hour
+controller interval instead of30minutes, while IAS15 gravity remains adaptive.
+This reduces controller/integrator-restart work by4x. Finite signal travel is
+still enforced, with decisions quantized to the controller interval; this is a
+coarse control model, not sub-hour response fidelity. The half-interval comparison
+now checks two-hour against one-hour control. The stellar stop radius is0.08AU
+to retain margin for the longer control interval. No forces or resource limits
+are increased to improve apparent capture.

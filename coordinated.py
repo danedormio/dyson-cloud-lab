@@ -9,7 +9,7 @@ import rebound
 AU=149597870700.; DAY=86400.; G=6.67430e-11; SUN=1.98847e30; C=299792458.
 N=48; NODE_MASS=1e18; PACKET_MASS=1e12
 RANGE=.65*AU; FORCE=2e9; POWER=2e14; CAPACITY=2e22
-DT=1800.; TARGET=1.2*AU
+DT=7200.; TARGET=1.2*AU
 
 def vec(p): return [p.x,p.y,p.z]
 def vel(p): return [p.vx,p.vy,p.vz]
@@ -160,7 +160,7 @@ class CoordinatedCloud:
         if not 0<days<=4: raise ValueError('Step outside limit')
         end=self.sim.t+days*DAY
         while self.sim.t<end-.001:
-            if self.packet is not None and norm(sub(vec(self.sim.particles[self.packet]),vec(self.sim.particles[0])))<.06*AU:
+            if self.packet is not None and norm(sub(vec(self.sim.particles[self.packet]),vec(self.sim.particles[0])))<.08*AU:
                 self.halted=True
                 break
             if self.halted: break
@@ -204,7 +204,7 @@ class CoordinatedCloud:
         residual=self.sim.energy()-self.initial_energy-self.work_total
         # Also report at packet-work scale; Sun-scale relative drift alone hides errors.
         scale=PACKET_MASS*(45000.**2)
-        return dict(version='minimal-cloud-v1',engine='REBOUND IAS15',time=self.sim.t/DAY,bodies=bodies,packet=packet,
+        return dict(version='minimal-cloud-v1.1',engine='REBOUND IAS15',time=self.sim.t/DAY,bodies=bodies,packet=packet,
             decision=self.mode,reason=self.reason,plan=self.plan,enabled=self.enabled,
             target_au=1.2,halted=self.halted,links=[i+1 for i,x in enumerate(self.activity) if x>.01],
             stored_j=sum(self.stores),heat_j=sum(self.heat),work_j=self.work_total,
