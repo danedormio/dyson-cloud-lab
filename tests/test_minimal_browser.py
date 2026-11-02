@@ -104,3 +104,25 @@ def test_cloud_volume_paused_start_rate_and_camera(backend,chromium):
     Path('test-artifacts').mkdir(exist_ok=True)
     page.screenshot(path='test-artifacts/cloud-volume-paused.png')
     page.close()
+
+
+def test_playback_blends_acknowledged_samples_and_pause_is_exact(backend,chromium):
+    page=chromium.new_page()
+    page.add_init_script("""const originalFetch=window.fetch;
+      let steps=0;window.fetch=async (...args)=>{
+      const response=await originalFetch(...args);
+      if(String(args[0]).endsWith('/api/simple/step')){
+        steps++;await new Promise(r=>setTimeout(r,steps===1?900:2500));
+      }return response;};""")
+    page.goto(backend.url+'/simple');page.wait_for_function('!!window.cloudView?.world')
+    page.click('#play');page.wait_for_function('window.cloudView.world.time>0')
+    first=page.evaluate('({t:cloudView.renderTime,physics:cloudView.world.time,b:cloudView.renderBodies[1]})')
+    assert 0<=first['t']<first['physics']
+    page.wait_for_timeout(250)
+    second=page.evaluate('({t:cloudView.renderTime,physics:cloudView.world.time,b:cloudView.renderBodies[1]})')
+    assert first['physics']==second['physics'] and first['t']<second['t']<=second['physics']
+    assert math.dist([first['b'][k] for k in ['x','y','z']],[second['b'][k] for k in ['x','y','z']])>0
+    page.click('#play');page.wait_for_timeout(40)
+    assert page.evaluate('cloudView.renderTime===cloudView.world.time')
+    assert page.evaluate('cloudView.renderBodies[1].x===cloudView.world.bodies[1].x')
+    page.close()
