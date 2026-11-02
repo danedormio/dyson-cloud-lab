@@ -105,7 +105,7 @@ def test_all_supported_populations_have_distinct_finite_initial_conditions():
         locations = {(b['x_m'],b['y_m'],b['z_m']) for b in s['bodies']}
         assert len(locations) == count + 2
         assert math.hypot(*s['momentum_kg_ms']) / s['total_mass_kg'] < 1e-8
-    assert CloudWorld(8).checkpoint()['scenario_version'] == 2
+    assert CloudWorld(8).checkpoint()['scenario_version'] == 4
 
 
 def test_eight_cloud_bodies_conserve_over_364_days():
@@ -151,7 +151,7 @@ def test_explorer_rate_steps_match_direct_backend_and_reset():
 
 
 def test_workshop_geometry_and_mass_are_deterministic_and_recoverable():
-    args = dict(cloud_count=12, cloud_mass_kg=1e12, inner_au=1.5, outer_au=3.5, inclination_deg=40)
+    args = dict(cloud_count=12, cloud_mass_kg=1e12, inner_au=1.5, outer_au=3.5, inclination_deg=40, geometry="disk")
     world = CloudWorld(0)
     initial = world.reset(**args)
     assert initial == CloudWorld(0).reset(**args)
@@ -247,3 +247,66 @@ def test_old_physical_checkpoints_without_workshop_metadata_still_load():
     assert restored.state()['bodies'] == world.state()['bodies']
     assert restored.state()['scenario'] is None
     assert restored.state()['boundary_events'] == []
+
+
+def test_spherical_cloud_has_isotropic_positions_and_orbital_directions():
+    w=CloudWorld(180)
+    sun=w.sim.particles[0]
+    radial=[];normals=[]
+    for p in list(w.sim.particles)[2:]:
+        r=[p.x-sun.x,p.y-sun.y,p.z-sun.z];v=[p.vx-sun.vx,p.vy-sun.vy,p.vz-sun.vz]
+        rn=math.hypot(*r);vn=math.hypot(*v)
+        assert abs(sum(a*b for a,b in zip(r,v)))/(rn*vn)<1e-12
+        radial.append([a/rn for a in r])
+        h=[r[1]*v[2]-r[2]*v[1],r[2]*v[0]-r[0]*v[2],r[0]*v[1]-r[1]*v[0]]
+        normals.append([a/math.hypot(*h) for a in h])
+    for points in [radial,normals]:
+        for axis in range(3):
+            assert abs(sum(p[axis] for p in points)/len(points))<.16
+            assert .24<sum(p[axis]**2 for p in points)/len(points)<.43
+            assert min(p[axis] for p in points)<-.8 and max(p[axis] for p in points)>.8
+    assert w.state()['scenario']['geometry']=='sphere'
+    assert CloudWorld(180).state()==w.state()
+
+
+def test_motion_samples_are_true_ias15_states_and_forecast_is_isolated():
+    w=CloudWorld(8);start=w.checkpoint()
+    forecast=w.trajectory(2)
+    assert w.checkpoint()==start
+    assert len(forecast['positions_m'])==97
+    reference=CloudWorld(0);reference.restore(start)
+    for i in [0,24,48,96]:
+        reference.sim.integrate(forecast['start_time_s']+forecast['horizon_s']*i/96,exact_finish_time=1)
+        p=reference.sim.particles[2]
+        assert math.dist(forecast['positions_m'][i],[p.x,p.y,p.z])/AU<1e-8
+    sampled=w.step(30*DAY,samples=16)
+    assert len(sampled['motion_frames'])==17
+    reference=CloudWorld(0);reference.restore(start)
+    for frame in sampled['motion_frames']:
+        reference.sim.integrate(frame['time_s'],exact_finish_time=1)
+        for i,p in enumerate(reference.sim.particles):
+            assert math.dist(frame['positions_m'][i],[p.x,p.y,p.z])/AU<1e-8
+    assert abs(sampled['energy_relative_drift'])<1e-8
+
+
+def test_two_year_composite_advance_retains_step_cap_and_conservation():
+    w=CloudWorld(8);before=w.state();remaining=2*365.25*DAY
+    while remaining:
+        step=min(30*DAY,remaining);w.step(step,samples=16);remaining-=step
+    final=w.state()
+    assert final['time_s']==2*365.25*DAY
+    assert abs(final['energy_relative_drift'])<1e-8
+    assert math.dist(final['momentum_kg_ms'],before['momentum_kg_ms'])/final['total_mass_kg']<1e-8
+    import pytest
+    with pytest.raises(ValueError):w.step(2*365.25*DAY)
+
+
+def test_trajectory_is_private_and_charged_as_bounded_compute(tmp_path):
+    from fastapi.testclient import TestClient
+    from server import create_app
+    from sessions import SessionStore
+    c=TestClient(create_app(SessionStore(tmp_path/'forecast.sqlite3',max_requests_per_minute=28)))
+    original=c.get('/api/state').json()
+    assert c.post('/api/trajectory',json={'body_id':2}).status_code==200
+    assert c.get('/api/state').json()==original
+    assert c.post('/api/trajectory',json={'body_id':2}).status_code==429

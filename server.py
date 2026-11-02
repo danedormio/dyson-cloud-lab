@@ -67,6 +67,11 @@ class InputModel(BaseModel):
 
 class StepRequest(InputModel):
     seconds: float = Field(default=3600, gt=0, le=2_592_000)
+    samples: int = Field(default=1, ge=1, le=32)
+
+
+class TrajectoryRequest(InputModel):
+    body_id: int = Field(ge=0, le=MAX_BODIES-1)
 
 
 class LaunchRequest(InputModel):
@@ -84,6 +89,7 @@ class ResetRequest(InputModel):
     inner_au: float = Field(default=0.8, ge=0.2, le=19.9)
     outer_au: float = Field(default=4, gt=0.2, le=20)
     inclination_deg: float = Field(default=0, ge=0, le=90)
+    geometry: str = Field(default="sphere", pattern="^(sphere|disk)$")
 
 
 class ReplayRequest(InputModel):
@@ -117,9 +123,9 @@ def create_app(store=None):
         # through error serialization (non-finite JSON otherwise yields a 500).
         return JSONResponse({"detail": "Invalid request fields or JSON"}, 422)
 
-    def run(request, response, operation, **recovery):
+    def run(request, response, operation, cost=1, **recovery):
         try:
-            result, token, _ = app.state.sessions.run(request.cookies.get(COOKIE_NAME), operation, **recovery)
+            result, token, _ = app.state.sessions.run(request.cookies.get(COOKIE_NAME), operation, cost=cost, **recovery)
         except SessionError as exc:
             raise HTTPException(exc.status, exc.message) from exc
         except (ValueError, OverflowError, RecursionError) as exc:
@@ -164,7 +170,11 @@ def create_app(store=None):
 
     @app.post("/api/step")
     def step(payload: StepRequest, request: Request, response: Response):
-        return run(request, response, lambda w, *_: w.step(payload.seconds))
+        return run(request, response, lambda w, *_: w.step(payload.seconds, payload.samples))
+
+    @app.post("/api/trajectory")
+    def trajectory(payload: TrajectoryRequest, request: Request, response: Response):
+        return run(request, response, lambda w, *_: w.trajectory(payload.body_id), cost=25)
 
     @app.post("/api/launch")
     def launch(payload: LaunchRequest, request: Request, response: Response):
@@ -203,6 +213,11 @@ def create_app(store=None):
     @app.get("/explorer.js")
     def explorer_client():
         return FileResponse(Path(__file__).with_name("explorer.js"), media_type="text/javascript",
+                            headers={"Cache-Control": "no-cache"})
+
+    @app.get("/motion.js")
+    def motion_client():
+        return FileResponse(Path(__file__).with_name("motion.js"), media_type="text/javascript",
                             headers={"Cache-Control": "no-cache"})
 
     @app.get("/laboratory.js")
