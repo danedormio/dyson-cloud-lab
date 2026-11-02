@@ -436,8 +436,10 @@ def test_playable_workshop_replay_results_and_private_recovery(chromium, backend
     page.locator('#replay').click()
     expect(page.locator('#experimentReadout')).to_contain_text('bound state — not proof of capture')
     ARTIFACTS.mkdir(exist_ok=True)
+    page.evaluate('window.scrollTo(0,0);document.querySelector("aside").scrollTop=0')
     page.screenshot(path=str(ARTIFACTS/'playable-laboratory-desktop.png'),full_page=True)
     page.set_viewport_size({'width':390,'height':844})
+    page.wait_for_function('document.querySelector("#experimentChart").width === document.querySelector("#experimentChart").clientWidth')
     page.screenshot(path=str(ARTIFACTS/'playable-laboratory-mobile.png'),full_page=True)
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
     assert not errors,errors
@@ -448,15 +450,15 @@ def test_camera_remains_live_during_step_request(chromium, backend):
     page=chromium.new_page(viewport={'width':1100,'height':850})
     page.goto(backend.url)
     expect(page.locator('#wake')).to_be_hidden(timeout=15000)
-    # Delayed response forces physics busy while RAF must still update projected geometry.
-    def delay(route):
-        response=route.fetch()
-        time.sleep(1.2)
-        route.fulfill(response=response)
-    page.route('**/api/step',delay)
+    # Delay transport in the browser without blocking the test driver's event loop.
+    page.evaluate("""() => {const original=window.fetch.bind(window);window.fetch=(...args)=>
+        args[0]==='/api/step'?new Promise(resolve=>setTimeout(()=>resolve(original(...args)),2000)):original(...args)}""")
     before=page.evaluate('explorer.projected.find(p=>p.id===1).x')
     page.locator('#once').click(no_wait_after=True)
+    assert page.evaluate('busy')
     page.locator('#view').press('ArrowRight')
     page.wait_for_function('(before)=>Math.abs(explorer.projected.find(p=>p.id===1).x-before)>1',arg=before)
+    assert page.evaluate('busy')
+    assert 't=0.00' in page.locator('#state').inner_text()
     expect(page.locator('#state')).to_contain_text('t=1.00')
     page.close()
