@@ -97,6 +97,13 @@ class ReplayRequest(InputModel):
     launch: LaunchRequest
 
 
+class MinimalLaunch(InputModel):
+    speed: float = Field(default=45, ge=5, le=180)
+    offset: float = Field(default=.65, ge=-1.5, le=1.5)
+    angle: float = Field(default=0, ge=-60, le=60)
+    enabled: bool = True
+
+
 class SessionRequest(InputModel):
     recovery_token: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{43}$")
     has_backup: bool = False
@@ -212,6 +219,36 @@ def create_app(store=None):
         return run(request, response, lambda w, sid, key, now:
                    app.state.sessions.restore(w, payload, sid, key, now))
 
+    def minimal(w, action, payload=None):
+        from coordinated import CoordinatedCloud
+        cloud = CoordinatedCloud(getattr(w, "minimal_snapshot", None))
+        if action == "reset":
+            cloud = CoordinatedCloud()
+        elif action == "launch":
+            if cloud.packet is not None:
+                raise ValueError("Reset before another launch")
+            cloud = CoordinatedCloud()  # identical orbital phase for on/off comparison
+            cloud.launch(**payload.model_dump())
+        elif action == "step":
+            cloud.advance(2.)
+        result = cloud.state()
+        w.minimal_snapshot = cloud.snapshot()
+        return result
+
+    @app.get("/api/simple")
+    def minimal_state(request: Request, response: Response):
+        return run(request, response, lambda w, *_: minimal(w, "state"))
+
+    @app.post("/api/simple/{action}")
+    def minimal_action(action: str, payload: MinimalLaunch, request: Request, response: Response):
+        if action not in ("launch", "step", "reset"):
+            raise HTTPException(404, "Unknown action")
+        return run(request, response, lambda w, *_: minimal(w, action, payload))
+
+    @app.get("/simple")
+    def minimal_frontend():
+        return FileResponse(Path(__file__).with_name("simple.html"))
+
     @app.get("/")
     def browser_frontend():
         return FileResponse(Path(__file__).with_name("rebound.html"))
@@ -250,3 +287,4 @@ def create_app(store=None):
 
 
 app = create_app()
+

@@ -234,11 +234,13 @@ class CloudWorld:
             self.scenario = checkpoint.get("scenario", None)
             self.boundary_events = checkpoint.get("boundary_events", [])
             self.reference_time = checkpoint.get("reference_time_s", 0.0)
+            self.minimal_snapshot = copy.deepcopy(checkpoint.get("minimal_cloud"))
             return self.state()
 
     def checkpoint(self):
         with self.lock:
-            return {"version": 1, "time_s": float(self.sim.t),
+            return {**({"minimal_cloud": self.minimal_snapshot} if getattr(self, "minimal_snapshot", None) else {}),
+                    "version": 1, "time_s": float(self.sim.t),
                     "scenario_version": self.scenario_version,
                     "initial_energy_j": self.initial_energy,
                     "scenario": self.scenario, "boundary_events": copy.deepcopy(self.boundary_events),
@@ -299,3 +301,4 @@ class CloudWorld:
                 "coupling_enabled":False,
                 "note":"Gravity-only REBOUND reference: coupling and capture not enabled."
             }
+
