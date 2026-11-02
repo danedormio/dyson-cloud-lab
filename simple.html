@@ -81,7 +81,7 @@ function error(problem) {
 async function act(action, payload) {
   if(busy)return;
   busy=true;
-  $('connection').textContent=action==='step'?'Computing next two days…':'Updating cloud…';
+  $('connection').textContent=(action==='step'?'Computing next two days…':'Updating cloud…')+(backupAvailable?'':' · temporary session');
   try {
     const state=await api(action,payload);
     if(action==='reset'){trail=[];selected=null;$('inspector').style.display='none';}
