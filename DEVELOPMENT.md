@@ -15,82 +15,55 @@ The owner's standing development merge authorization (2026-10-30) is implemented
 3. CI installs REBOUND and validates reference gravitational orbits, momentum and energy. Playwright drives a real Chromium browser, captures screenshots and rejects JavaScript errors.
 4. Agent examines failing runs, makes bounded fixes and reruns tests. No representation that tests pass until a verified result exists.
 5. Review the actual diff, exact-head physics/API/recovery and browser CI, screenshots and applicable model/security/migration evidence. Routine low-risk authorized work may use documented automated acceptance-criteria review and independent exact-head CI; no universal second-person/account approval is required. Preserve all configured review/protection checks. Reconcile concurrent base movements; verify Skunkworks auto-deploy effects remain inside the previously approved development environment without new costs or private-data exposure. Codex may merge its own eligible development PR through normal GitHub methods only after every AGENTS integration gate passes. Review-only assignments stay unmerged; unresolved gates require an owner decision. No self-approval, force, protection bypass or alternate route around a safety block.
-6. Read back merge status/commit/development SHA, observe post-merge CI and applicable Skunkworks deployment health, and checkpoint exact outcomes in Notion (durable GitHub evidence with a pending reconciliation flag if Notion is temporarily unavailable). Stop after the authorized task, except for eligible next work under the bounded daily authorization below. **Only separate explicit owner authorization for main/public production or releases** permits those actions. Changes to coupling laws, resource accounting, integrators, runtime architecture, security, charges or broad autonomous behavior still need approved task scope and applicable validation; development merge authority does not supply that scope.
+6. Read back merge status/commit/development SHA, observe post-merge CI and applicable Skunkworks deployment health, and checkpoint exact outcomes in Notion (durable GitHub evidence with a pending reconciliation flag if Notion is temporarily unavailable). Continue only within the authorized milestone; stop after usable delivery and wait for owner feedback. **Only separate explicit owner authorization for main/public production or releases** permits those actions. Changes to coupling laws, resource accounting, integrators, runtime architecture, security, charges or broad autonomous behavior still need approved task scope and applicable validation; development merge authority does not supply that scope.
 
 ## Limitations / status
 - This branch provides Python REBOUND IAS15 scaffolding and tests; the production site still uses its existing JavaScript gravity-only visualization.
 - Browser automation exercises actual DOM interactions using Playwright on a CI runner. Screenshot review and assertions remain necessary for visual claims.
 - Do not assume a CI run exists, or has passed, until GitHub reports its outcome. The historical installation failure is superseded: the November 1 pilot ran real REBOUND locally and in CI (41 physics/API/recovery and 12 browser tests). Verify each new exact head rather than reusing that count as a fresh pass.
-- Unattended operation is not established by configuration alone. GitHub Actions is a test runner; a real scheduled Codex worker, recovery and report delivery must be demonstrated before calling the daily loop operational.
+- Unattended operation is not established by configuration alone. GitHub Actions is a test runner; supported execution, checkpoint recovery and delivery must be demonstrated before claiming autonomous milestone completion. Daily selection is superseded below.
 - Render's production service currently deploys commits to main on push; `main` remains separately owner-authorized. Development changes use feature PRs into foundation/rebound-ci and the standing AGENTS gates. Account for the existing Skunkworks service tracking that development branch before integration. No new service, permissions or deployment configuration is authorized here.
 - Existing Skunkworks already runs the Python development backend. Preserve its service and access settings; do not recreate staging or modify production routing. Verify the actually deployed commit separately from CI.
 
 
-## Bounded daily development-and-review loop
+## Owner-directed milestone workflow
 
-This section is the existing workflow's operational contract, not proof that a
-runner is working. The owner explicitly authorizes its activation and tests on
-November 1, 2026. The canonical Notion Loop 2 Activation Gate records actual task,
-runner, schedule, run/worker IDs, evidence and unresolved capabilities. No rival
-operating guide, new paid service or reviewer account is needed.
+The owner superseded daily development on November 1, 2026. The old daily
+schedule is disabled, with history retained in the canonical Notion checkpoint.
+No new milestone or recurring work selection is authorized by this document.
 
-- **Select:** resume the recorded in-progress task first. Otherwise select at
-  most one open GitHub issue or checkpoint task within standing owner-authorized
-  routine scope with explicit acceptance criteria. Deterministic order: recorded
-  priority, then oldest issue number. No eligible work means report idle; never
-  manufacture changes to fill a day. Until activation is demonstrated, scope is
-  loop policy/testing/recovery/reporting only, not simulator features or research.
-- **Bound:** default one active worker, 30 minutes per cycle, at most two worker
-  launches and three repair iterations. Use existing Codex entitlement only; no
-  paid API fallback or automatic budget increase. The runner must enforce process
-  timeout and record model usage when available; prompt limits are advisory and
-  must not be advertised as enforced token/dollar caps. Missing enforceable limits
-  or usable credentials must be reported, not bypassed.
-- **Implement/test/review:** follow AGENTS preflight, isolated branch, draft PR,
-  exact-head physics/API/recovery and browser CI, screenshots where relevant and
-  documented acceptance-criteria review. A routine qualifying PR may leave draft
-  and merge normally into development without another owner click; respect host
-  protections and consequential-action gates. Never use author-account APPROVE.
-- **Persist:** before/after side effects record task/run ID, base/head/tree,
-  branch/PR, changed paths, accepted actions, tests, remaining budget and next step
-  in the existing GitHub issue/PR and Notion checkpoint. Local files are a cache,
-  not the only durable record. Re-read an uncertain mutation before retrying it.
-- **Recover:** take an exclusive per-repository lease before edits; use an atomic
-  claim/lease supported by the chosen runner and refuse overlapping work. After
-  interruption reconcile lease, remote refs, existing PR, source fingerprints and
-  completed actions; do not recreate commits/PRs or repeat uncertain merges.
-  Permit one relaunch within the remaining cycle budget, then stop and report.
-  Test a real Codex worker termination/relaunch, not a dummy process or only a
-  fresh checkout. Never kill an unrelated worker.
-- **Report:** deliver one concise owner-facing result with completed work and
-  exact SHAs/PR, tests and CI links, deployment observations, recovery outcome,
-  next approved task and decisions/blockers. Report idle or failed runs too.
-  Existing Notion/GitHub hold the audit trail; the runner's inbox/notification is
-  the delivery path. A saved report or chat reference alone does not prove receipt.
-- **Release boundary:** no `main` merge/public production deploy, new scientific
-  claim/model, sensitive security/credential change, access/cost/infrastructure
-  change or unapproved task. Keep existing Skunkworks policy; do not trigger a
-  duplicate deploy to compensate for unverified automatic delivery.
+Within an expressly authorized milestone, plan coherent tasks internally and
+continue implementation, tests, debugging, acceptance review and qualifying
+integration until there is a usable result. A merged PR or a trigger is not the
+completion criterion. Do not ask for routine per-task approval or stop after an
+incidental small success. Preserve AGENTS exact-head CI and consequential gates.
 
-Choose the simplest available supported scheduler with the required execution
-capabilities. A cloud chat task can be tested for invocation/reporting, but must
-not be called a Codex development worker if it cannot access the repository,
-execute tests, publish through approved credentials and expose safe process
-recovery. Prefer an already-authenticated Codex app automation on the existing
-repository when cloud capabilities are insufficient; verify the installed
-product's supported setup before recommending a one-time owner action. Do not
-copy authentication files into an ad hoc worker home or defeat a read-only mount.
+Use the attached execution environment directly. Do not launch nested Codex
+workers to evade platform constraints. Across supported sessions, recover scope,
+base/head/tree, branch/PR, changed files, tests, remaining runtime/retry budget and
+next action from the existing Notion checkpoint and GitHub evidence. Reconcile
+remote state and uncertain mutations before retrying; preserve owner work and
+avoid duplicate commits/PRs. Never claim background execution without an actual
+supported running mechanism. If continuation cannot be arranged, checkpoint the
+precise platform limit and smallest resumption action rather than invent progress.
 
-**Activation evidence required:** one clock-triggered unattended invocation,
-actual implementation/test/review cycle, real worker kill/relaunch with durable
-idempotent recovery, verified report delivery and continued daily scheduling.
-Configuration, a manually requested run, a stopped future schedule or controlled
-checkout resumption cannot individually establish those claims. Keep status
-explicitly partial/blocked until every required observation exists.
+Use bounded commands and reasonable milestone budgets: record an active-work
+target (initial playable milestone: 90 minutes) and at most three repairs per
+coherent subsystem before reassessing. Budgets carry across interruption. No paid
+API fallback, hosting upgrade, new account or expense without explicit approval.
+Prompt runtime/usage targets are advisory unless enforcement is actually known.
+Keep status and completion claims proportional to the observed evidence.
 
-### Direct scheduled-cloud checkout evidence
+Deliver a working development URL or straightforward launch method, usable
+experiments, exact commit/PR/CI evidence, physical limitations and the next
+substantial recommendation. Keep routine technical records in GitHub/Notion;
+owner messages should focus on meaningful results or consequential blockers.
+After delivery, stop initiating development and wait for feedback. Production,
+scientific architecture, security-sensitive actions and costs retain owner gates.
 
-Use the existing scheduled cloud chat directly; do not launch a nested CLI
+### Checkout evidence and supported continuation
+
+Use the existing cloud task directly; do not launch a nested CLI
 worker. Recover the canonical Notion checkpoint and verify the current remote
 branch with GitHub before trusting any local files. Then run:
 
@@ -106,10 +79,10 @@ edits and on resumption; use the checkpointed feature SHA for an existing PR,
 then reconcile its ancestry with the freshly observed development branch.
 A failure preserves owner work: stop and reconcile, never clean or reset it.
 
-The existing task returns reports to the same chat. Its saved daily recurrence
-and actual run evidence live in the canonical activation checkpoint; null API
+The existing task returns milestone results to the same chat. Its historical
+schedule/run evidence lives in the canonical activation checkpoint; null API
 history/receipt fields are not proof of execution or owner receipt. Recover an
 existing PR before creating anything, and after a merge report the same merge
-SHA on the next invocation without repeating the change. Direct turn continuation
+SHA on resumption without repeating the change. Direct turn continuation
 has been tested; real worker kill/restart and hard per-turn model usage limits
 remain unverified. Command timeouts do not enforce a whole-turn budget.

@@ -387,3 +387,85 @@ def test_build_indicator_matches_running_server(chromium, backend, revision):
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
     assert not errors, errors
     page.close()
+
+
+def test_playable_workshop_replay_results_and_private_recovery(chromium, backend):
+    page = chromium.new_page(viewport={'width':1440,'height':1050})
+    errors=[]
+    page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    page.locator('#loadPreset').click()
+    page.locator('#replay').click()
+    expect(page.locator('#state')).to_contain_text('35 bodies')
+    expect(page.locator('#experimentReadout')).to_contain_text('unbound')
+    expect(page.locator('#boundaryLedger')).to_contain_text('+1.000e+0 kg')
+    initial=state(page.context,backend.url)
+    assert any(abs(b['z_m'])>1e9 for b in initial['bodies'][2:])
+    page.locator('#month').click()
+    expect(page.locator('#state')).to_contain_text('t=30.00')
+    expect(page.locator('#experimentReadout')).to_contain_text('2 retained samples')
+    page.locator('#pinComparison').click()
+    expect(page.locator('#comparisonReadout')).to_contain_text('t=30.0 d')
+    page.locator('#follow').check()
+    page.locator('#frame').select_option('earth')
+    page.locator('#colorMode').select_option('speed')
+    page.locator('#topView').click()
+    page.locator('#remember').click()
+    page.locator('#speed').fill('10')
+    page.locator('#recall').click()
+    assert page.locator('#speed').input_value()=='40'
+    with page.expect_download() as downloaded:
+        page.locator('#exportResults').click()
+    raw=Path(downloaded.value.path()).read_text()
+    exported=json.loads(raw)
+    assert exported['format']=='dyson-gravity-experiment-v1'
+    assert len(exported['samples'])==2
+    assert len(exported['comparison']['points'])==2
+    first=exported['samples'][0]['objects'][-1]
+    last=exported['samples'][-1]['objects'][-1]
+    final=exported['final']['bodies'][-1]
+    initial_body=initial['bodies'][-1]
+    assert first['momentum_kg_ms']==[initial_body['mass_kg']*initial_body[k] for k in ('vx_ms','vy_ms','vz_ms')]
+    assert last['momentum_kg_ms']==[final['mass_kg']*final[k] for k in ('vx_ms','vy_ms','vz_ms')]
+    expect(page.locator('#experimentReadout')).to_contain_text('Measured Δp')
+    assert exported['scenario']['inclination_deg']==25
+    assert all(word not in raw for word in ('credential','signature','recovery_token','owner'))
+    backup=download_checkpoint(page)
+    page.locator('#replay').click()
+    expect(page.locator('#state')).to_contain_text('t=0.00')
+    assert state(page.context,backend.url)['bodies']==initial['bodies']
+    restore_checkpoint(page,backup)
+    expect(page.locator('#state')).to_contain_text('t=30.00')
+    assert state(page.context,backend.url)['boundary_events']==initial['boundary_events']
+    page.locator('#preset').select_option('bound')
+    page.locator('#loadPreset').click()
+    page.locator('#replay').click()
+    expect(page.locator('#experimentReadout')).to_contain_text('bound state — not proof of capture')
+    ARTIFACTS.mkdir(exist_ok=True)
+    page.evaluate('window.scrollTo(0,0);document.querySelector("aside").scrollTop=0')
+    page.screenshot(path=str(ARTIFACTS/'playable-laboratory-desktop.png'),full_page=True)
+    page.set_viewport_size({'width':390,'height':844})
+    page.wait_for_function('document.querySelector("#experimentChart").width === document.querySelector("#experimentChart").clientWidth')
+    page.screenshot(path=str(ARTIFACTS/'playable-laboratory-mobile.png'),full_page=True)
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    assert not errors,errors
+    page.close()
+
+
+def test_camera_remains_live_during_step_request(chromium, backend):
+    page=chromium.new_page(viewport={'width':1100,'height':850})
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    # Delay transport in the browser without blocking the test driver's event loop.
+    page.evaluate("""() => {const original=window.fetch.bind(window);window.fetch=(...args)=>
+        args[0]==='/api/step'?new Promise(resolve=>setTimeout(()=>resolve(original(...args)),2000)):original(...args)}""")
+    before=page.evaluate('explorer.projected.find(p=>p.id===1).x')
+    page.locator('#once').click(no_wait_after=True)
+    assert page.evaluate('busy')
+    page.locator('#view').press('ArrowRight')
+    page.wait_for_function('(before)=>Math.abs(explorer.projected.find(p=>p.id===1).x-before)>1',arg=before)
+    assert page.evaluate('busy')
+    assert 't=0.00' in page.locator('#state').inner_text()
+    expect(page.locator('#state')).to_contain_text('t=1.00')
+    page.close()

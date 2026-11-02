@@ -8,6 +8,7 @@ Coupling/actuation will be implemented as separately verified, symmetric
 momentum exchanges. There is deliberately NO arbitrary capture force here.
 """
 import math
+import copy
 import threading
 
 import rebound
@@ -22,13 +23,24 @@ class CloudWorld:
         self.lock = threading.RLock()
         self.reset(cloud_count)
 
-    def reset(self, cloud_count=72):
+    def reset(self, cloud_count=72, cloud_mass_kg=1.0, inner_au=0.8, outer_au=4.0, inclination_deg=0.0):
         with self.lock:
+            values = (cloud_mass_kg, inner_au, outer_au, inclination_deg)
+            if (not all(math.isfinite(float(v)) for v in values)
+                    or not 0 <= int(cloud_count) <= 200
+                    or not 0 < cloud_mass_kg <= 1e20
+                    or not 0.2 <= inner_au < outer_au <= 20
+                    or not 0 <= inclination_deg <= 90):
+                raise ValueError("invalid bounded cloud scenario")
+            self.scenario = dict(cloud_count=int(cloud_count), cloud_mass_kg=cloud_mass_kg,
+                                 inner_au=inner_au, outer_au=outer_au, inclination_deg=inclination_deg)
+            self.boundary_events = []
             self.sim = rebound.Simulation()
             self.sim.units = ("m", "s", "kg")
             self.sim.integrator = "ias15"
             self.sim.dt = 3600.0
-            self.scenario_version = 2
+            self.scenario_version = (2 if self.scenario == dict(cloud_count=int(cloud_count),
+                cloud_mass_kg=1.0, inner_au=0.8, outer_au=4.0, inclination_deg=0.0) else 3)
             self.names = ["Sun", "Earth"]
             self.roles = ["star", "planet"]
             self.sim.add(m=SUN_KG, x=0, y=0, z=0)
@@ -36,32 +48,66 @@ class CloudWorld:
             self.sim.add(m=EARTH_KG, x=AU, y=0, z=0, vy=earth_v)
             for i in range(int(cloud_count)):
                 # Deterministic, non-coincident orbital phases and radii.
-                radius = (0.8 + 3.2 * (i + 0.5) / max(1, cloud_count)) * AU
+                radius = (inner_au + (outer_au-inner_au) * (i + 0.5) / max(1, cloud_count)) * AU
                 # Half a golden-angle phase step avoids the Earth-at-(AU,0)
                 # coincidence for cloud_count=8, without changing any forces.
                 phase = (i + 0.5) * 2.399963229728653
                 speed = math.sqrt(self.sim.G * SUN_KG / radius)
-                self.sim.add(m=1.0,
+                # Deterministic tilted orbital planes; exact old fixture at zero tilt.
+                inc = math.radians(inclination_deg) * math.sin(phase)
+                self.sim.add(m=cloud_mass_kg,
                              x=radius * math.cos(phase),
-                             y=radius * math.sin(phase),
+                             y=radius * math.sin(phase) * math.cos(inc),
+                             z=radius * math.sin(phase) * math.sin(inc),
                              vx=-speed * math.sin(phase),
-                             vy=speed * math.cos(phase))
+                             vy=speed * math.cos(phase) * math.cos(inc),
+                             vz=speed * math.cos(phase) * math.sin(inc))
                 self.names.append(f"Cloud {i+1}")
                 self.roles.append("cloud")
             self.sim.move_to_com()
             self.initial_energy = self.sim.energy()
+            self.reference_time = 0.0
             return self.state()
 
-    def add_incoming(self, speed_kms=25, impact_au=0.5, offset_degrees=0):
+    def add_incoming(self, speed_kms=25, impact_au=0.5, offset_degrees=0,
+                     mass_kg=1.0, azimuth_deg=0.0, elevation_deg=0.0):
         with self.lock:
-            outer = 4.0 * AU
-            theta = math.radians(float(offset_degrees))
-            # Angle acts on perpendicular vector; negative impact mirrors it.
-            b = float(impact_au) * AU
-            self.sim.add(m=1.0, x=-1.4*outer, y=b*math.cos(theta),
-                         z=b*math.sin(theta), vx=float(speed_kms)*1000.0)
+            values = (speed_kms, impact_au, offset_degrees, mass_kg, azimuth_deg, elevation_deg)
+            if (not all(math.isfinite(float(v)) for v in values)
+                    or not 0 < speed_kms <= 300 or not 0 < mass_kg <= 1e24
+                    or not -25 <= impact_au <= 25 or not -180 <= offset_degrees <= 180
+                    or not -180 <= azimuth_deg <= 180 or not -89 <= elevation_deg <= 89
+                    or len(self.sim.particles) >= 202):
+                raise ValueError("invalid bounded Newtonian arrival")
+            az, el, theta = map(math.radians, (azimuth_deg, elevation_deg, offset_degrees))
+            direction = [math.cos(el)*math.cos(az), math.cos(el)*math.sin(az), math.sin(el)]
+            side = [-math.sin(az), math.cos(az), 0.0]
+            up = [-math.sin(el)*math.cos(az), -math.sin(el)*math.sin(az), math.cos(el)]
+            position = [-5.6*AU*d + impact_au*AU*(math.cos(theta)*u+math.sin(theta)*v)
+                        for d, u, v in zip(direction, side, up)]
+            velocity = [speed_kms*1000*d for d in direction]
+            # External matter injection: explicit open-boundary event, not free thrust.
+            if any(math.dist(position, (p.x,p.y,p.z)) < 1.0 for p in self.sim.particles):
+                raise ValueError("arrival overlaps an existing point mass; step or change geometry")
+            potential = math.fsum(-self.sim.G*mass_kg*p.m / math.dist(position, (p.x,p.y,p.z))
+                                  for p in self.sim.particles)
+            energy_in = 0.5*mass_kg*sum(v*v for v in velocity) + potential
+            momentum = [mass_kg*v for v in velocity]
+            angular = [mass_kg*(position[1]*velocity[2]-position[2]*velocity[1]),
+                       mass_kg*(position[2]*velocity[0]-position[0]*velocity[2]),
+                       mass_kg*(position[0]*velocity[1]-position[1]*velocity[0])]
+            self.sim.add(m=mass_kg, x=position[0], y=position[1], z=position[2],
+                         vx=velocity[0], vy=velocity[1], vz=velocity[2])
             self.names.append(f"Tracked {len(self.names)}")
             self.roles.append("tracked")
+            self.boundary_events.append(dict(sequence=len(self.boundary_events)+1, time_s=self.sim.t,
+                parameters=dict(speed_kms=speed_kms, impact_au=impact_au, offset_degrees=offset_degrees,
+                    mass_kg=mass_kg, azimuth_deg=azimuth_deg, elevation_deg=elevation_deg),
+                kind="external_matter_insertion", body_id=len(self.names)-1, mass_kg=mass_kg,
+                energy_j=energy_in, momentum_kg_ms=momentum, angular_momentum_kg_m2_s=angular))
+            # Monitor each closed integration segment against its own baseline.
+            self.initial_energy = self.sim.energy()
+            self.reference_time = self.sim.t
             return self.state()
 
     def step(self, seconds=3600):
@@ -119,6 +165,9 @@ class CloudWorld:
             self.names, self.roles = names, roles
             self.initial_energy = baseline
             self.scenario_version = checkpoint.get("scenario_version", 1)
+            self.scenario = checkpoint.get("scenario", None)
+            self.boundary_events = checkpoint.get("boundary_events", [])
+            self.reference_time = checkpoint.get("reference_time_s", 0.0)
             return self.state()
 
     def checkpoint(self):
@@ -126,6 +175,8 @@ class CloudWorld:
             return {"version": 1, "time_s": float(self.sim.t),
                     "scenario_version": self.scenario_version,
                     "initial_energy_j": self.initial_energy,
+                    "scenario": self.scenario, "boundary_events": copy.deepcopy(self.boundary_events),
+                    "reference_time_s": self.reference_time,
                     "solver": {"name": "ias15", "rebound_version": rebound.__version__,
                                "units": ["m", "s", "kg"], "dt_s": 3600.0},
                     "bodies": self.state()["bodies"],
@@ -146,15 +197,39 @@ class CloudWorld:
                 for k in ("vx_ms", "vy_ms", "vz_ms")
             ]
             energy = self.sim.energy()
+            sun = self.sim.particles[0]
+            orbits = []
+            for i, p in enumerate(self.sim.particles):
+                if i == 0:
+                    orbits.append(None)
+                    continue
+                r = [p.x-sun.x, p.y-sun.y, p.z-sun.z]
+                v = [p.vx-sun.vx, p.vy-sun.vy, p.vz-sun.vz]
+                radius, speed = math.hypot(*r), math.hypot(*v)
+                mu = self.sim.G*(sun.m+p.m)
+                h = [r[1]*v[2]-r[2]*v[1], r[2]*v[0]-r[0]*v[2], r[0]*v[1]-r[1]*v[0]]
+                specific = speed*speed/2 - mu/radius if radius else None
+                ecc = math.sqrt(max(0, 1+2*specific*sum(x*x for x in h)/(mu*mu))) if radius else None
+                orbits.append(dict(distance_au=radius/AU, speed_kms=speed/1000,
+                    radial_kms=sum(a*b for a,b in zip(r,v))/radius/1000 if radius else None,
+                    specific_energy_j_kg=specific, eccentricity=ecc,
+                    periapsis_au=sum(x*x for x in h)/mu/(1+ecc)/AU if ecc is not None else None))
+            angular = [math.fsum(b['mass_kg']*(b[a]*b[d]-b[c]*b[e]) for b in particles)
+                       for a,d,c,e in [('y_m','vz_ms','z_m','vy_ms'),
+                                       ('z_m','vx_ms','x_m','vz_ms'),('x_m','vy_ms','y_m','vx_ms')]]
             return {
                 "engine": "REBOUND IAS15", "time_s":float(self.sim.t),
+                "solver": {"name": "ias15", "rebound_version": rebound.__version__,
+                           "units": ["m", "s", "kg"], "dt_s": 3600.0},
                 "gravitational_energy_j":energy,
                 "energy_relative_drift":(
                     (energy - self.initial_energy) / abs(self.initial_energy)
                     if self.initial_energy else None
                 ),
                 "momentum_kg_ms":momentum, "total_mass_kg":total_m,
-                "bodies":particles,
+                "bodies":particles, "orbits": orbits, "scenario": self.scenario,
+                "boundary_events": copy.deepcopy(self.boundary_events), "reference_time_s": self.reference_time,
+                "angular_momentum_kg_m2_s": angular,
                 "coupling_enabled":False,
                 "note":"Gravity-only REBOUND reference: coupling and capture not enabled."
             }
