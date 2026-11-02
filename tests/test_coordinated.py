@@ -82,3 +82,13 @@ def test_api_isolation_reproducible_launch_and_persistence(tmp_path):
     state=a.get('/api/simple').json()
     assert state['plan']=='Passive'
     assert a.post('/api/simple/launch',json={'speed':1000}).status_code==422
+
+
+def test_stellar_approach_stops_without_fake_capture():
+    w=CoordinatedCloud();w.launch(offset=0,enabled=False)
+    p=w.sim.particles[-1];p.x=.055*AU;p.y=0
+    before=w.sim.t
+    result=w.advance(2)
+    assert w.sim.t==before and result['halted']
+    assert result['decision']=='Stellar approach limit'
+    assert w.exchanged==0

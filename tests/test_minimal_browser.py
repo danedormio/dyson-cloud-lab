@@ -23,8 +23,11 @@ def test_minimal_launch_controls_motion_and_mobile(backend,chromium):
     assert page.locator('#offsetValue').inner_text()!='0.65 AU'
     page.locator('#offset').evaluate("el=>{el.value='0.65'}")
     page.locator('#offset').dispatch_event('input')
+    # Launch during live playback must queue rather than silently drop the click.
+    page.click('#play')
     page.click('#launch');page.wait_for_function('window.cloudView.world.packet!==null')
-    assert page.evaluate('window.cloudView.world.time')==0
+    page.click('#play');page.wait_for_timeout(600)
+    assert page.evaluate('window.cloudView.world.time')<=4
     assert page.locator('#launch').is_disabled()
     page.click('#play');page.wait_for_function('window.cloudView.world.time>=8');page.click('#play')
     page.wait_for_timeout(600)

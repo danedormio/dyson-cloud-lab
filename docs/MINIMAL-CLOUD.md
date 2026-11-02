@@ -44,7 +44,8 @@ Next try 80 km/s (limited assistance) and 180 km/s (stand aside).
   and gravity. No arbitrary reset of positions, velocities or orbit energy.
 - Per-link force/work caps, station speed/delta-v checks, and a 5% initial
   specific-orbital-energy envelope reject unaffordable commands. These are
-  controller constraints, not guaranteed long-term orbital safety.
+  controller constraints, not guaranteed long-term orbital safety. Packet approaches
+  inside 0.06 AU pause the simulation before the unresolved stellar region.
 - Global budget screen uses estimated encounter time and impulse/energy demand.
   It selects attempt, assist, or stand aside. It is a heuristic, not an optimal
   feasibility proof. One target: near-circular prograde/retrograde motion toward

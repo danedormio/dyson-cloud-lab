@@ -33,7 +33,7 @@ class CoordinatedCloud:
         self.enabled=True; self.packet=None; self.launch_time=0.; self.bound_since=None
         self.plan='Waiting'; self.plan_time=0.; self.launch_state=None; self.observations=[]
         self.initial_energy=self.sim.energy(); self.initial_p=self.momentum(); self.initial_l=self.angular()
-        self.work_total=0.; self.exchanged=0.; self.last_error=0.
+        self.work_total=0.; self.exchanged=0.; self.last_error=0.; self.halted=False
         if saved: self.restore(saved)
 
     def momentum(self): return [math.fsum(p.m*getattr(p,k) for p in self.sim.particles) for k in ('vx','vy','vz')]
@@ -84,6 +84,7 @@ class CoordinatedCloud:
         # Scale for power cap before checking electrical/thermal/orbit resources.
         if abs(delta)>POWER*dt:
             impulse*=POWER*dt/abs(delta); delta=work(impulse)
+        if abs(delta)>POWER*dt*(1+1e-12): return False
         electrical=-delta/.9 if delta>=0 else -.9*delta
         heat=-delta-electrical
         k=store_id
@@ -157,6 +158,10 @@ class CoordinatedCloud:
         if not 0<days<=4: raise ValueError('Step outside limit')
         end=self.sim.t+days*DAY
         while self.sim.t<end-.001:
+            if self.packet is not None and norm(sub(vec(self.sim.particles[self.packet]),vec(self.sim.particles[0])))<.06*AU:
+                self.halted=True
+                break
+            if self.halted: break
             dt=min(step,end-self.sim.t); start=self.sim.t
             self.sim.integrate(start+dt/2)
             old_impulse=self.exchanged
@@ -191,12 +196,15 @@ class CoordinatedCloud:
             packet=dict(speed=norm(v)/1000,radius=radius/AU,specific_energy=energy,eccentricity=ecc,status=status,
                         periapsis=h*h/mu/(1+ecc)/AU,bound_days=(self.sim.t-self.bound_since)/DAY if self.bound_since is not None else 0)
             self.mode=self.plan if self.sim.t>=self.plan_time else 'Plan in transit'
+        if self.halted:
+            self.mode='Stellar approach limit'
+            self.reason='Paused before the packet enters the near-star region, outside this model’s tested regime. Reset and increase the trajectory offset.'
         residual=self.sim.energy()-self.initial_energy-self.work_total
         # Also report at packet-work scale; Sun-scale relative drift alone hides errors.
         scale=PACKET_MASS*(45000.**2)
         return dict(version='minimal-cloud-v1',engine='REBOUND IAS15',time=self.sim.t/DAY,bodies=bodies,packet=packet,
             decision=self.mode,reason=self.reason,plan=self.plan,enabled=self.enabled,
-            target_au=1.2,links=[i+1 for i,x in enumerate(self.activity) if x>.01],
+            target_au=1.2,halted=self.halted,links=[i+1 for i,x in enumerate(self.activity) if x>.01],
             stored_j=sum(self.stores),heat_j=sum(self.heat),work_j=self.work_total,
             exchanged_impulse=self.exchanged,energy_residual_j=residual,energy_residual_packet_scale=residual/scale,
             momentum_residual=norm(sub(self.momentum(),self.initial_p)),angular_residual=self.angular()-self.initial_l,
@@ -204,7 +212,7 @@ class CoordinatedCloud:
 
     def snapshot(self):
         return dict(time=self.sim.t,bodies=[[p.m,*vec(p),*vel(p)] for p in self.sim.particles],
-            **{k:getattr(self,k) for k in ('stores','heat','activity','mode','reason','enabled','packet','launch_time','bound_since','plan','plan_time','launch_state','observations','initial_energy','initial_p','initial_l','work_total','exchanged')})
+            **{k:getattr(self,k) for k in ('stores','heat','activity','mode','reason','enabled','packet','launch_time','bound_since','plan','plan_time','launch_state','observations','initial_energy','initial_p','initial_l','work_total','exchanged','halted')})
 
     def restore(self,saved):
         if len(saved['bodies']) not in (N+1,N+2):raise ValueError('Invalid minimal cloud')
@@ -214,4 +222,4 @@ class CoordinatedCloud:
             m,x,y,z,vx,vy,vz=row;sim.add(m=m,x=x,y=y,z=z,vx=vx,vy=vy,vz=vz)
         sim.t=saved['time'];self.sim=sim
         for k in self.snapshot():
-            if k not in ('time','bodies'):setattr(self,k,saved[k])
+            if k not in ('time','bodies'):setattr(self,k,saved.get(k,False) if k=='halted' else saved[k])
