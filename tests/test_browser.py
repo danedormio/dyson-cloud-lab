@@ -79,12 +79,16 @@ def state(context, url):
 
 
 def download_checkpoint(page):
+    if not page.locator('#save').is_visible():
+        page.locator('#archivePanel > summary').click()
     with page.expect_download() as result:
         page.locator('#save').click()
     return Path(result.value.path()).read_bytes()
 
 
 def restore_checkpoint(page, raw):
+    if not page.locator('#restore').is_visible():
+        page.locator('#archivePanel > summary').click()
     with page.expect_file_chooser() as result:
         page.locator('#restore').click()
     result.value.set_files({'name':'checkpoint.json', 'mimeType':'application/json', 'buffer':raw})
@@ -202,6 +206,8 @@ def test_full_redeploy_browser_backups_and_portable_private_file(chromium, backe
     pa.wait_for_function('!busy')
     expected_a, expected_b = state(a, backend.url), state(b, backend.url)
     with pa.expect_download() as download:
+        if not pa.locator('#backup').is_visible():
+            pa.locator('#archivePanel > summary').click()
         pa.locator('#backup').click()
     private_file = Path(download.value.path()).read_bytes()
     backend.stop(crash=True)
@@ -457,6 +463,7 @@ def test_camera_remains_live_during_step_request(chromium, backend):
     page=chromium.new_page(viewport={'width':1100,'height':850})
     page.goto(backend.url)
     expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    page.wait_for_function('explorer.projected?.some(p=>p.id===1)')
     # Delay transport in the browser without blocking the test driver's event loop.
     page.evaluate("""() => {const original=window.fetch.bind(window);window.fetch=(...args)=>
         args[0]==='/api/step'?new Promise(resolve=>setTimeout(()=>resolve(original(...args)),2000)):original(...args)}""")
@@ -486,3 +493,32 @@ def test_prototype_core_parity_observed_in_browser(chromium,backend,monkeypatch)
     page.screenshot(path=str(ARTIFACTS/'prototype-parity-desktop.png'),full_page=True)
     page.set_viewport_size({'width':390,'height':844});page.screenshot(path=str(ARTIFACTS/'prototype-parity-mobile.png'),full_page=True)
     context.close()
+
+
+def test_polished_sandbox_launch_preview_and_interaction(chromium,backend):
+    from sandbox_observer import observe_sandbox
+    page=chromium.new_page(viewport={'width':1440,'height':1000})
+    assert observe_sandbox(page,backend.url)['launched_body_matches_preview']
+    page.close()
+
+
+def test_launch_preview_stale_response_and_failure_preserve_world(chromium,backend):
+    page=chromium.new_page(viewport={'width':1280,'height':900})
+    page.goto(backend.url);expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    page.wait_for_function('window.sandbox?.draft')
+    original=page.evaluate('JSON.stringify(snapshot.bodies)')
+    page.evaluate('''()=>{const fetchOriginal=window.fetch;window.fetch=async(...args)=>{const result=await fetchOriginal(...args);if(args[0]==='/api/launch-preview')await new Promise(r=>setTimeout(r,1200));return result}}''')
+    page.locator('#traceLaunch').click();page.wait_for_function('laboratory.forecasting')
+    page.locator('#speed').fill('70')
+    page.wait_for_function('!laboratory.forecasting',timeout=30000)
+    assert page.evaluate('window.sandbox.validPreview()') is None
+    assert page.evaluate('JSON.stringify(snapshot.bodies)')==original
+    page.route('**/api/launch-preview',lambda route:route.fulfill(status=429,content_type='application/json',body='{"detail":"quota"}'))
+    page.locator('#traceLaunch').click()
+    expect(page.locator('#previewStatus')).to_contain_text('allowance reached')
+    assert page.evaluate('JSON.stringify(snapshot.bodies)')==original
+    assert not page.evaluate('laboratory.forecasting')
+    page.locator('#speed').fill('301')
+    assert page.evaluate('window.sandbox.draft') is None
+    expect(page.locator('#previewStatus')).to_contain_text('valid launch values')
+    page.close()

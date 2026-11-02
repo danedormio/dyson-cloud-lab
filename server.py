@@ -184,6 +184,12 @@ def create_app(store=None):
             return w.add_incoming(**payload.model_dump())
         return run(request, response, apply)
 
+    @app.post("/api/launch-preview")
+    def launch_preview(payload: LaunchRequest, request: Request, response: Response):
+        # Same validation, ownership, serialization and weighted quota as forecasts.
+        return run(request, response,
+                   lambda w, *_: w.preview_incoming(**payload.model_dump()), cost=25)
+
     @app.post("/api/reset")
     def reset(payload: ResetRequest, request: Request, response: Response):
         return run(request, response, lambda w, *_: w.reset(**payload.model_dump()))
@@ -228,6 +234,16 @@ def create_app(store=None):
     @app.get("/recovery.js")
     def recovery_client():
         return FileResponse(Path(__file__).with_name("recovery.js"), media_type="text/javascript",
+                            headers={"Cache-Control": "no-cache"})
+
+    @app.get("/sandbox.js")
+    def sandbox_client():
+        return FileResponse(Path(__file__).with_name("sandbox.js"), media_type="text/javascript",
+                            headers={"Cache-Control": "no-cache"})
+
+    @app.get("/sandbox.css")
+    def sandbox_style():
+        return FileResponse(Path(__file__).with_name("sandbox.css"), media_type="text/css",
                             headers={"Cache-Control": "no-cache"})
 
     return app

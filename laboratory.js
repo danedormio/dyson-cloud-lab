@@ -15,7 +15,7 @@ class Laboratory {
     document.querySelector('#sideView').onclick=()=>{explorer.el=0;explorer.az=0};
   }
   message(text){document.querySelector('#experimentStatus').textContent=text;}
-  fill(fields,values){for(const [key,id] of Object.entries(fields))if(values?.[key]!==undefined)document.querySelector('#'+id).value=values[key]}
+  fill(fields,values){for(const [key,id] of Object.entries(fields))if(values?.[key]!==undefined){const input=document.querySelector('#'+id);input.value=values[key];input.dispatchEvent(new Event('input',{bubbles:true}))}}
   setScenario(values){this.fill(this.fields,values);document.querySelector('#geometry').value=values.geometry||'disk';this.geometryChanged()}
   geometryChanged(){const sphere=document.querySelector('#geometry').value==='sphere';document.querySelector('#inclination').disabled=sphere;document.querySelector('#geometryHint').textContent=sphere?'Spherical: deterministic isotropic radial and tangential directions. Reset cloud applies it.':'Disk/legacy scenario: choose Spherical then Reset cloud to restore the 3D ensemble.'}
   values(fields){const result={};for(const [key,id] of Object.entries(fields)){const input=document.querySelector('#'+id);if(!input.checkValidity()||!Number.isFinite(Number(input.value))||input.value===''){input.reportValidity();this.message('Enter a finite value inside the displayed bounds.');return null}result[key]=Number(input.value)}return result}
