@@ -103,14 +103,15 @@ async function connect(fresh=false) {
   $('connection').textContent=fresh?'Starting a fresh cloud…':'Connecting to physics…';
   try {
     while(busy)await new Promise(r=>setTimeout(r,20));
+    let skipBackup=false;
     if(fresh) {
       // An explicit fresh start archives this view's backup; old workbench data is untouched.
       try {await backup.archiveAndReset();backupAvailable=true;}
-      catch {backupAvailable=false;}
+      catch {backupAvailable=false;skipBackup=true;}
       await request('/api/simple/session',{},'DELETE');
       trail=[];selected=null;$('inspector').style.display='none';
     }
-    const state=await bootstrap();
+    const state=await bootstrap(skipBackup);
     reconnectNeeded=false;playing=!state.halted;
     setWorld(state);
     $('reason').classList.remove('error');
@@ -138,10 +139,13 @@ async function loop(){
   if(playing && !busy && !pending && !connecting && !reconnectNeeded && world)await act('step');
   setTimeout(loop,180);
 }
-async function bootstrap(){
+async function bootstrap(skipBackup=false){
   let saved=null;
-  try {saved=await backup.refresh();backupAvailable=true;}
-  catch {backupAvailable=false;}
+  if(skipBackup){backupAvailable=false;}
+  else {
+    try {saved=await backup.refresh();backupAvailable=true;}
+    catch {backupAvailable=false;}
+  }
   let state;
   try {
     state=await request('/api/simple/session',{
