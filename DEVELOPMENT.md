@@ -87,3 +87,29 @@ idempotent recovery, verified report delivery and continued daily scheduling.
 Configuration, a manually requested run, a stopped future schedule or controlled
 checkout resumption cannot individually establish those claims. Keep status
 explicitly partial/blocked until every required observation exists.
+
+### Direct scheduled-cloud checkout evidence
+
+Use the existing scheduled cloud chat directly; do not launch a nested CLI
+worker. Recover the canonical Notion checkpoint and verify the current remote
+branch with GitHub before trusting any local files. Then run:
+
+```sh
+python scripts/checkout_preflight.py --directory . --expected-sha FULL_REMOTE_SHA
+```
+
+The standard-library command emits JSON and exits nonzero for an unexpected
+origin/commit, tracked or untracked changes, or failed Git inspection. It changes
+no files or refs and never reports a credential-bearing remote. This is local
+checkout evidence, not remote authentication or a repository lock. Run it before
+edits and on resumption; use the checkpointed feature SHA for an existing PR,
+then reconcile its ancestry with the freshly observed development branch.
+A failure preserves owner work: stop and reconcile, never clean or reset it.
+
+The existing task returns reports to the same chat. Its saved daily recurrence
+and actual run evidence live in the canonical activation checkpoint; null API
+history/receipt fields are not proof of execution or owner receipt. Recover an
+existing PR before creating anything, and after a merge report the same merge
+SHA on the next invocation without repeating the change. Direct turn continuation
+has been tested; real worker kill/restart and hard per-turn model usage limits
+remain unverified. Command timeouts do not enforce a whole-turn budget.
