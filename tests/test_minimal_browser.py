@@ -51,3 +51,22 @@ def test_minimal_launch_controls_motion_and_mobile(backend,chromium):
     (artifacts/'minimal-browser-observations.json').write_text(json.dumps({'errors':errors,'animated_days':moved['time'],'launch_rewinds_to_same_phase':True,'passive_and_stand_aside_verified':True}))
     assert errors==[]
     page.close()
+
+
+def test_minimal_scene_resumes_after_server_storage_loss(backend,chromium):
+    page=chromium.new_page(viewport={'width':1200,'height':900})
+    page.goto(backend.url+'/simple')
+    page.wait_for_function('window.cloudView?.world?.time>=2')
+    page.click('#play');page.wait_for_timeout(600)
+    page.click('#launch');page.wait_for_function('window.cloudView.world.packet!==null')
+    initial=page.evaluate('window.cloudView.world.bodies')
+    # Simulate an ephemeral service redeploy; same recovery key, lost server DB.
+    backend.stop();backend.db.unlink();backend.start()
+    page.reload()
+    page.wait_for_function('!!window.cloudView?.world?.packet')
+    page.click('#play');page.wait_for_timeout(600)
+    recovered=page.evaluate('window.cloudView.world')
+    assert recovered['packet'] is not None and len(recovered['bodies'])==len(initial)
+    assert recovered['plan']=='Attempt capture'
+    assert page.locator('#decision').inner_text()!='Preparing the cloud'
+    page.close()
