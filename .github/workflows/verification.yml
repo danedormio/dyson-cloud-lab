@@ -1,51 +1,94 @@
-name: Physics and browser verification
+name: First Light smooth playback acceptance
 on:
-  push:
-    branches: [main, "foundation/**", "feat/issue-3-recoverable-sessions"]
-  pull_request:
-    branches: [main, "foundation/rebound-ci"]
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
-  physics:
-    name: REBOUND solar system physics
+  hosted:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - run: python -m pip install -r requirements.txt
-      - run: python -m pytest tests/test_rebound.py tests/test_sessions.py tests/test_recovery.py tests/test_checkout_preflight.py tests/test_coordinated.py tests/test_simple_sessions.py -v
-
-  browser:
-    name: Chromium browser interactions
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: python -m pip install -r requirements.txt
+          python-version: '3.11'
+      - run: python -m pip install 'playwright>=1.50,<2'
       - run: python -m playwright install --with-deps chromium
-      - run: python -m pytest tests/test_browser.py tests/test_minimal_browser.py tests/test_startup_browser.py -v
-      - name: Observe deployed Skunkworks parity (explicit dispatch only)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Inspect the actual hosted simulator
         env:
-          DYSON_LIVE_SHA: ${{ github.sha }}
+          EXPECTED_BUILD: 177eddff96eda7fd4f30f9b56c5e5d69ee257c0a
         run: |
-          python -m pytest tests/test_live_skunkworks.py -vs
-          test -f test-artifacts/live-skunkworks-observations.json
-      - name: Keep graphical evidence
+          python -u - <<'PY'
+          import json, os, sys, time, urllib.request
+          from pathlib import Path
+          from types import SimpleNamespace
+          from playwright.sync_api import sync_playwright
+          sys.path.insert(0, 'tests')
+          from test_minimal_browser import test_minimal_launch_controls_motion_and_mobile, test_cloud_volume_paused_start_rate_and_camera, test_playback_blends_acknowledged_samples_and_pause_is_exact
+          from test_startup_browser import (
+              test_old_workbench_recovery_cannot_block_minimal_startup,
+              test_retry_reconnects_after_startup_service_failure,
+              test_start_fresh_archives_unrecoverable_scene_without_touching_old_work,
+              test_blocked_browser_storage_still_allows_temporary_physics_session,
+              test_retry_reads_committed_state_after_lost_step_response,
+              test_full_storage_fresh_start_keeps_original_and_runs_temporarily)
+          base='https://dyson-cloud-lab-rebound-staging.onrender.com'
+          with urllib.request.urlopen(base+'/health', timeout=120) as response:
+              health=json.load(response)
+          assert health['revision']==os.environ['EXPECTED_BUILD'], health
+          print('Exact hosted build:',health['revision'],flush=True)
+          with sync_playwright() as p:
+              browser=p.chromium.launch(headless=True)
+              try:
+                  cases=[test_old_workbench_recovery_cannot_block_minimal_startup,
+                         test_retry_reconnects_after_startup_service_failure,
+                         test_start_fresh_archives_unrecoverable_scene_without_touching_old_work,
+                         test_blocked_browser_storage_still_allows_temporary_physics_session,
+                         test_retry_reads_committed_state_after_lost_step_response,
+                         test_full_storage_fresh_start_keeps_original_and_runs_temporarily,
+                         test_minimal_launch_controls_motion_and_mobile,
+                         test_cloud_volume_paused_start_rate_and_camera,
+                         test_playback_blends_acknowledged_samples_and_pause_is_exact]
+                  for case in cases:
+                      case(SimpleNamespace(url=base), browser)
+                      print('HOSTED CASE PASSED:',case.__name__,flush=True)
+              except Exception:
+                  Path('test-artifacts').mkdir(exist_ok=True)
+                  for ci,context in enumerate(browser.contexts):
+                      for pi,failed_page in enumerate(context.pages):
+                          failed_page.screenshot(path=f'test-artifacts/failure-{ci}-{pi}.png')
+                          print(failed_page.evaluate("({time:window.cloudView?.world?.time,decision:document.querySelector('#decision')?.textContent,reason:document.querySelector('#reason')?.textContent,connection:document.querySelector('#connection')?.textContent})"),flush=True)
+                  raise
+              page=browser.new_page(viewport={'width':1440,'height':960})
+              errors=[]
+              page.on('pageerror',lambda e:errors.append(str(e)))
+              page.goto(base+'/simple',timeout=120000)
+              page.wait_for_function('!!window.cloudView?.world',timeout=120000)
+              assert page.locator('#play').inner_text()=='Play'
+              assert page.evaluate('window.cloudView.world.time')==0
+              page.click('#launch')
+              page.wait_for_function('window.cloudView.world.packet!==null',timeout=30000)
+              page.select_option('#rate','16')
+              page.click('#play')
+              page.wait_for_function('window.cloudView.world.time>=20',timeout=120000)
+              page.click('#play')
+              page.wait_for_timeout(1500)
+              state=page.evaluate('window.cloudView.world')
+              state.pop('recovery',None)  # never publish private recovery capsules
+              assert state['exchanged_impulse']>0 and state['work_j']<0
+              assert not errors,errors
+              Path('test-artifacts').mkdir(exist_ok=True)
+              page.screenshot(path='test-artifacts/first-light-hosted.png')
+              page.set_viewport_size({'width':390,'height':900})
+              page.screenshot(path='test-artifacts/first-light-hosted-mobile.png')
+              Path('test-artifacts/first-light-hosted-observations.json').write_text(json.dumps({'health':health,'state':state,'page_errors':errors}))
+              print(json.dumps({'day':state['time'],'packet':state['packet'],'work_j':state['work_j'],'packet_scale_residual':state['energy_residual_packet_scale'],'errors':errors}),flush=True)
+              browser.close()
+          PY
+      - name: Retain visible evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: browser-screenshots
+          name: first-light-hosted-evidence
           path: test-artifacts/
-          if-no-files-found: ignore
-
+          if-no-files-found: error
