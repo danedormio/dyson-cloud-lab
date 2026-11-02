@@ -19,23 +19,42 @@ The approved [Notion development roadmap](https://app.notion.com/p/40104771655d8
 4. **Fail closed:** if the base, synchronization, cleanliness or publication path cannot be verified, stop before edits and report the exact blocker and safe resumption step. A stale local checkout must first be synchronized safely or excluded from implementation in favor of the verified plugin workflow. Do not guess remote state, weaken checks, bypass the managed proxy/sandbox, expose credentials, change permissions or silently switch to production.
 5. Recheck the remote base before publication and disclose any movement; reconcile and rerun affected checks before claiming current-base validation. On resume, repeat preflight and reconcile existing branch/PR state before retrying writes. Checkpoint approved scope, base/head SHAs, changed paths, checks, blockers, retry budget and next action in Notion; default to at most three repair iterations.
 6. Open a **draft PR targeting `foundation/rebound-ci`**, never `main`. Verify physics/API/recovery and browser Actions runs identify the exact PR head SHA; distinguish GitHub's synthetic merge checkout SHA when applicable. Report every pass, failure, skip and test not run, with CI links. Apply the development integration gates below before merging; an assignment requiring review-only publication stays unmerged. A green run does not prove scientific validity.
-7. Every task report must include approved scope, base SHA, final head SHA, changed files, tests/checks and their outcomes, limitations, synchronization method and PR URL, plus merge/development SHA and post-merge observations if integrated. Record evidence in the existing Notion task/activation record and report the outcome to the owner. Stop after the approved task; do not activate schedules or begin a new assignment.
+7. Every task report must include approved scope, base SHA, final head SHA, changed files, tests/checks and their outcomes, limitations, synchronization method and PR URL, plus merge/development SHA and post-merge observations if integrated. Record evidence in the existing Notion task/activation record and report the outcome to the owner. Stop after the authorized task. A recurring runner may select the next eligible task only under the explicit bounded daily authorization in DEVELOPMENT.md; it must not expand scope.
 
-`main`, public releases, the public production deployment and deployment configuration remain protected by separate explicit owner approval. Green CI alone does not authorize integration, deployment, permissions, costs or scientific scope expansion. Standing development merge authority is limited to the gates below; it does not enable GitHub auto-merge, unattended scheduling or parallel autonomous agents.
+`main`, public releases, the public production deployment and deployment configuration remain protected by separate explicit owner approval. Green CI alone does not authorize integration, deployment, permissions, costs or scientific scope expansion. Standing development merge authority is limited to the gates below. The owner separately authorizes bounded daily invocation under DEVELOPMENT.md; this does not enable GitHub auto-merge or parallel autonomous agents.
 
 ## Development integration — standing owner authorization (2026-10-30)
 The [standing owner authorization](https://app.notion.com/p/40404771655d8153be75c65a24bfc176) permits Codex to merge **its own qualifying PRs into `foundation/rebound-ci`** without individual owner merge approval, only for previously authorized tasks. Task approval, scope and scientific acceptance remain separate from integration eligibility. A narrower assignment overrides this default: **review-only PRs remain unmerged until their specifically required review and authorization are complete**.
 
 Before each development merge:
 1. Repeat current-assignment/AGENTS/remote-state verification. Inspect the actual diff and confirm only authorized changes, target `foundation/rebound-ci`, and no effects on `main`, production release configuration, permissions, secrets/private data, costs or unapproved services.
-2. Preserve required peer or automated independent scrutiny and all configured protection/review checks. Critically review the diff; self-reported success is not independent test evidence and standing authority is not permission to self-approve or bypass a required review.
+2. Review the actual diff against explicit acceptance criteria, scope, regressions and security/scientific boundaries, and record the findings. For routine low-risk authorized development, this documented automated review plus independently executed exact-head CI is sufficient; a second person/account, separate reviewer agent or manual owner approval is not universally required. Never submit a GitHub APPROVE review as the PR author or bypass configured protection/review checks. Require specific owner decisions for consequential changes listed below.
 3. Require relevant exact-head physics/API/recovery and browser CI passes with zero unexplained failures or skips. Pass applicable security, scientific-model validation and migration/regression gates at documented thresholds; software CI alone does not validate a physical model. Record test checkout SHA separately when GitHub uses a synthetic merge.
 4. Reconcile concurrent base movements and prior PRs without force or protection bypass. Rerun affected checks on the reconciled head; earlier green results do not validate a changed head or repair formerly failed PRs retroactively.
 5. Disclose effects on the existing Skunkworks development deployment, which tracks this branch. If integration triggers auto-deploy, verify its effects stay within the previously approved development environment, with no new paid resources or private-data exposure. Uncertain or out-of-policy deployment effects block merging; do not alter hosting configuration to make a PR eligible.
 6. Use the normal GitHub-supported merge method after all gates pass (transition out of draft only when eligible). Respect host/tool safety blocks; never retry a blocked merge through an alternate API or change protections to evade it. Read back merged status, merge commit and current development SHA; observe post-merge CI and deployment health as applicable, and record outcomes or unresolved observations.
 7. Persist scope, diff/review evidence, exact SHAs, checks, merge/deployment effects and safe resumption in the existing Notion checkpoint. If Notion is temporarily unavailable, retain durable GitHub PR/commit evidence, flag reconciliation as pending and do not claim it was written.
 
-Fail closed for failing/unexplained checks, scope deviations, substantial new model assumptions or known validation deficiencies, security/privacy/license risks, costs, force/bypass requirements, permissions, new services or public exposure: stop and seek an explicit owner decision. Standing authority never authorizes `main` integration, public production changes/releases, recurring unattended scheduling or parallel autonomous agents. Report integration or a review-ready/blocked PR and stop; do not select a new task automatically.
+Fail closed for failing/unexplained checks, scope deviations, substantial new model assumptions or known validation deficiencies, security/privacy/license risks, costs, force/bypass requirements, permissions, new services or public exposure: stop and seek an explicit owner decision. Standing authority never authorizes `main` integration, public production changes/releases or parallel autonomous agents. Bounded recurring invocation is separately owner-authorized under DEVELOPMENT.md; only select work within that authorization, and stop on consequential decisions or missing runner capabilities.
+
+## Routine development policy clarification (2026-11-01)
+The sole owner authorizes routine, low-risk work within a previously authorized
+scope to be tested, reviewed against acceptance criteria and normally merged into
+`foundation/rebound-ci` without a second GitHub identity or per-PR owner click.
+Do not confuse repository host approval requirements with technical review, or
+invent a universal human-review gate. A task-specific review-only hold still
+applies until its recorded owner acceptance; PR #11 at
+`fc9ef264d4da4ccbc522d271e150af8f70bad13f` has that acceptance and later explicit
+integration authorization. Preserve its dated evidence rather than requiring a
+formal GitHub self-approval.
+
+Public/production releases, significant scientific architecture/model changes,
+security-sensitive actions, new expenses/accounts/services/permissions and work
+outside authorized scope still require explicit owner authorization. No force,
+protection changes, secret copying or sandbox bypass is permitted. Daily runner
+selection, limits, checkpoint/recovery and reporting belong in the existing
+[DEVELOPMENT.md](DEVELOPMENT.md#bounded-daily-development-and-review-loop), with
+observed operational status in the canonical Notion activation checkpoint.
 
 ## Physical invariants — non-negotiable
 1. The Sun, Earth, Moon, other planets, cloud elements and incoming bodies are ordinary massive simulation objects. The Sun is NOT pinned; track back reaction. Appearance and packet/cloud labels are views, not physics species.
