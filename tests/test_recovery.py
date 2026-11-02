@@ -164,3 +164,20 @@ def test_parallel_worker_schema_migration_is_atomic(tmp_path):
     with stores[0].connect() as db:
         columns = {row[1] for row in db.execute('PRAGMA table_info(sessions)')}
         assert {'recovery_owner','saved_at','revision'} <= columns
+
+
+def test_parameterized_workshop_survives_total_storage_loss(tmp_path):
+    key=secrets.token_hex(32)
+    proof=secrets.token_urlsafe(32)
+    c=client(tmp_path/'workshop-before.sqlite3',key)
+    bootstrap(c,proof)
+    assert c.post('/api/replay',json={
+        'scenario':{'cloud_count':8,'cloud_mass_kg':1e12,'inclination_deg':35,'inner_au':1.2,'outer_au':3},
+        'launch':{'mass_kg':1e15,'speed_kms':40,'azimuth_deg':20,'elevation_deg':15}
+    }).status_code==200
+    saved=c.post('/api/step',json={'seconds':30*DAY}).json()
+    recovered=recover(client(tmp_path/'workshop-after.sqlite3',key),saved,proof)
+    assert recovered.status_code==200
+    assert physical(recovered.json())==physical(saved)
+    assert recovered.json()['scenario']['inclination_deg']==35
+    assert recovered.json()['boundary_events'][0]['parameters']['mass_kg']==1e15

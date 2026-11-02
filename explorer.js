@@ -13,13 +13,13 @@ class ExplorerView {
     canvas.addEventListener('webglcontextrestored', ()=>{this.init();this.lost=false;this.status.textContent=''});
     const pointers=new Map(); let moved=false, start=null, pinch=null;
     canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,[e.clientX,e.clientY]);start=[e.clientX,e.clientY];moved=false;pinch=null});
-    canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;const old=pointers.get(e.pointerId);pointers.set(e.pointerId,[e.clientX,e.clientY]);if(pointers.size===2){const [a,b]=[...pointers.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]);if(pinch&&d)this.zoom(pinch/d);pinch=d;moved=true}else{const dx=e.clientX-old[0],dy=e.clientY-old[1];if(Math.hypot(e.clientX-start[0],e.clientY-start[1])>4)moved=true;if(moved){this.az+=dx*.008;this.el=Math.max(-1.5,Math.min(1.5,this.el+dy*.008));}}});
+    canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;const old=pointers.get(e.pointerId);pointers.set(e.pointerId,[e.clientX,e.clientY]);if(pointers.size===2){const [a,b]=[...pointers.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]);if(pinch&&d)this.zoom(pinch/d);pinch=d;moved=true}else{const dx=e.clientX-old[0],dy=e.clientY-old[1];if(Math.hypot(e.clientX-start[0],e.clientY-start[1])>4)moved=true;if(moved){if(e.shiftKey){const scale=this.distance/this.canvas.clientHeight;this.pan[0]-=dx*scale*Math.cos(this.az)+dy*scale*Math.sin(this.az)*Math.sin(this.el);this.pan[1]+=dx*scale*Math.sin(this.az)-dy*scale*Math.cos(this.az)*Math.sin(this.el);this.pan[2]-=dy*scale*Math.cos(this.el)}else{this.az+=dx*.008;this.el=Math.max(-1.5,Math.min(1.5,this.el+dy*.008));}}}});
     const end=(e,cancel=false)=>{if(!pointers.has(e.pointerId))return;if(!cancel&&!moved&&pointers.size===1){const rect=canvas.getBoundingClientRect();this.pick(e.clientX-rect.left,e.clientY-rect.top)}pointers.delete(e.pointerId);pinch=null};
     canvas.addEventListener('pointerup',e=>end(e));canvas.addEventListener('pointercancel',e=>end(e,true));
     canvas.addEventListener('wheel',e=>{e.preventDefault();this.zoom(Math.exp(Math.max(-200,Math.min(200,e.deltaY))*.003))},{passive:false});
     canvas.addEventListener('keydown',e=>{if(e.key==='Home'){this.home();e.preventDefault()}if(e.key==='+'||e.key==='=')this.zoom(.85);if(e.key==='-')this.zoom(1.15);if(e.key==='ArrowLeft')this.az-=.1;if(e.key==='ArrowRight')this.az+=.1;if(e.key==='ArrowUp')this.el=Math.min(1.5,this.el+.1);if(e.key==='ArrowDown')this.el=Math.max(-1.5,this.el-.1);if(e.key.startsWith('Arrow'))e.preventDefault()});
   }
-  home(){this.az=.45;this.el=.65;this.distance=13;}
+  home(){this.az=.45;this.el=.65;this.distance=13;this.pan=[0,0,0];}
   zoom(factor){this.distance=Math.max(2,Math.min(60,this.distance*factor));}
   select(id){this.selected=id;}
   init(){
@@ -54,15 +54,21 @@ class ExplorerView {
     gl.viewport(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);if(!snapshot)return;
     gl.useProgram(this.program);gl.uniform1f(this.uniform.Az,this.az);gl.uniform1f(this.uniform.El,this.el);gl.uniform1f(this.uniform.Distance,this.distance);gl.uniform1f(this.uniform.Aspect,w/h);
     gl.enableVertexAttribArray(this.position);gl.bindBuffer(gl.ARRAY_BUFFER,this.sphere);gl.vertexAttribPointer(this.position,3,gl.FLOAT,false,0,0);gl.enableVertexAttribArray(this.normal);gl.bindBuffer(gl.ARRAY_BUFFER,this.normals);gl.vertexAttribPointer(this.normal,3,gl.FLOAT,false,0,0);
+    const anchor=options.follow!==null&&options.follow!==undefined?snapshot.bodies.find(b=>b.id===options.follow):options.frame==='sun'?snapshot.bodies[0]:options.frame==='earth'?snapshot.bodies[1]:null;
+    const origin=anchor?[anchor.x_m/149597870700,anchor.y_m/149597870700,anchor.z_m/149597870700]:[0,0,0];
+    for(let i=0;i<3;i++)origin[i]+=this.pan[i];
+    const relative=p=>p.map((v,i)=>v-origin[i]);
     this.projected=[];const labels=[];
-    for(const b of snapshot.bodies){if(b.role==='cloud'&&!options.cloud)continue;const p=[b.x_m/149597870700,b.y_m/149597870700,b.z_m/149597870700],r=b.role==='star'?.15:b.role==='planet'?.085:b.role==='tracked'?.07:.045;
-      const color=b.id===this.selected?[1,.95,.5]:b.role==='star'?[1,.72,.26]:b.role==='planet'?[.2,.72,1]:b.role==='tracked'?[1,.42,.16]:[.48,.72,.86];
+    for(const b of snapshot.bodies){if((b.role==='cloud'&&!options.cloud)||(b.role==='tracked'&&options.tracked===false))continue;const p=relative([b.x_m/149597870700,b.y_m/149597870700,b.z_m/149597870700]),r=b.role==='star'?.15:b.role==='planet'?.085:b.role==='tracked'?.07:.045;
+      let color=b.id===this.selected?[1,.95,.5]:b.role==='star'?[1,.72,.26]:b.role==='planet'?[.2,.72,1]:b.role==='tracked'?[1,.42,.16]:[.48,.72,.86];
+      if(options.colorMode==='speed'&&b.id!==this.selected&&b.role!=='star'){const t=Math.min(1,(snapshot.orbits?.[b.id]?.speed_kms||0)/50);color=[t,.8*(1-t),1-t*.7]}
       gl.uniform3fv(this.uniform.Center,p);gl.uniform1f(this.uniform.Radius,r);gl.uniform3fv(this.uniform.Color,color);gl.uniform1f(this.uniform.Lit,1);gl.drawArrays(gl.TRIANGLES,0,this.sphereCount);
       const q={...this.project(p,w,h),id:b.id};q.radius=r*h/q.depth;this.projected.push(q);if((options.labels&&b.role!=='cloud')||b.id===this.selected){if(q.depth>.1&&q.x>=0&&q.x<w&&q.y>=0&&q.y<h){const label=document.createElement('span');label.textContent=b.name;label.style.left=(q.x+10)+'px';label.style.top=(q.y-10)+'px';labels.push(label)}}
     }
     this.labels.replaceChildren(...labels);
     const line=(points,color)=>{if(!points.length)return;gl.bindBuffer(gl.ARRAY_BUFFER,this.lines);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(points.flat()),gl.DYNAMIC_DRAW);gl.vertexAttribPointer(this.position,3,gl.FLOAT,false,0,0);gl.disableVertexAttribArray(this.normal);gl.vertexAttrib3f(this.normal,0,0,1);gl.uniform3f(this.uniform.Center,0,0,0);gl.uniform1f(this.uniform.Radius,1);gl.uniform1f(this.uniform.Lit,0);gl.uniform3fv(this.uniform.Color,color);gl.drawArrays(gl.LINE_STRIP,0,points.length)};
-    if(options.shell)for(const r of [.8,4])line(Array.from({length:181},(_,i)=>[r*Math.cos(i*Math.PI/90),r*Math.sin(i*Math.PI/90),0]),[.18,.3,.43]);
-    line(options.trail.map(p=>p.slice(0,3).map(v=>v/149597870700)),[.15,.5,.68]);
+    if(options.shell)for(const r of [snapshot.scenario?.inner_au||.8,snapshot.scenario?.outer_au||4])line(Array.from({length:181},(_,i)=>relative([snapshot.bodies[0].x_m/149597870700+r*Math.cos(i*Math.PI/90),snapshot.bodies[0].y_m/149597870700+r*Math.sin(i*Math.PI/90),snapshot.bodies[0].z_m/149597870700])),[.18,.3,.43]);
+    line(options.trail.map(p=>relative(p.slice(0,3).map(v=>v/149597870700))),[.15,.5,.68]);
+    line((options.extraTrails||[]).map(p=>relative(p.map(v=>v/149597870700))),[1,.65,.25]);
   }
 }

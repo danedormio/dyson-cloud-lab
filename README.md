@@ -32,3 +32,11 @@ python -m pytest tests/test_browser.py -v
 [Development and approval-gate protocol](DEVELOPMENT.md).
 
 **Scientific caution:** REBOUND integrates Newtonian gravity, but does not validate hypothetical coupling capabilities. Actuation, recoil, energy/momentum transfers, heat, orbital objectives, and coordinated control require independent implementations and tests.
+
+## Playable gravity workbench
+
+See [launch instructions and experiments](docs/PLAYABLE-LABORATORY.md) for the
+parameterized 3D REBOUND workbench, controlled replay, comparison plots, insertion
+accounting and private-state recovery. Use the development branch; production
+release remains separately approved. Development now follows an owner-directed
+milestone, not automatic daily task selection.

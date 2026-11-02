@@ -70,13 +70,25 @@ class StepRequest(InputModel):
 
 
 class LaunchRequest(InputModel):
-    speed_kms: float = Field(default=25, gt=0, le=100_000)
+    speed_kms: float = Field(default=25, gt=0, le=300)
     impact_au: float = Field(default=0.5, ge=-25, le=25)
     offset_degrees: float = Field(default=0, ge=-180, le=180)
+    mass_kg: float = Field(default=1, gt=0, le=1e24)
+    azimuth_deg: float = Field(default=0, ge=-180, le=180)
+    elevation_deg: float = Field(default=0, ge=-89, le=89)
 
 
 class ResetRequest(InputModel):
     cloud_count: int = Field(default=72, ge=0, le=MAX_BODIES - 2)
+    cloud_mass_kg: float = Field(default=1, gt=0, le=1e20)
+    inner_au: float = Field(default=0.8, ge=0.2, le=19.9)
+    outer_au: float = Field(default=4, gt=0.2, le=20)
+    inclination_deg: float = Field(default=0, ge=0, le=90)
+
+
+class ReplayRequest(InputModel):
+    scenario: ResetRequest
+    launch: LaunchRequest
 
 
 class SessionRequest(InputModel):
@@ -159,12 +171,21 @@ def create_app(store=None):
         def apply(w, *_):
             if len(w.sim.particles) >= MAX_BODIES:
                 raise SessionError(409, "Body limit reached; reset with fewer cloud bodies")
-            return w.add_incoming(payload.speed_kms, payload.impact_au, payload.offset_degrees)
+            return w.add_incoming(**payload.model_dump())
         return run(request, response, apply)
 
     @app.post("/api/reset")
     def reset(payload: ResetRequest, request: Request, response: Response):
-        return run(request, response, lambda w, *_: w.reset(payload.cloud_count))
+        return run(request, response, lambda w, *_: w.reset(**payload.model_dump()))
+
+    @app.post("/api/replay")
+    def replay(payload: ReplayRequest, request: Request, response: Response):
+        def apply(w, *_):
+            if payload.scenario.cloud_count + 3 > MAX_BODIES:
+                raise SessionError(409, "Leave one body slot for the replay arrival")
+            w.reset(**payload.scenario.model_dump())
+            return w.add_incoming(**payload.launch.model_dump())
+        return run(request, response, apply)
 
     @app.get("/api/checkpoint")
     def checkpoint(request: Request, response: Response):
@@ -182,6 +203,11 @@ def create_app(store=None):
     @app.get("/explorer.js")
     def explorer_client():
         return FileResponse(Path(__file__).with_name("explorer.js"), media_type="text/javascript",
+                            headers={"Cache-Control": "no-cache"})
+
+    @app.get("/laboratory.js")
+    def laboratory_client():
+        return FileResponse(Path(__file__).with_name("laboratory.js"), media_type="text/javascript",
                             headers={"Cache-Control": "no-cache"})
 
     @app.get("/recovery.js")
