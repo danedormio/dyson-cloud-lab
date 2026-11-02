@@ -26,14 +26,20 @@ def observe_parity(page, expected_sha=None):
     page.mouse.click(box['x']+q['x'],box['y']+q['y'])
     page.wait_for_function('laboratory.prediction?.positions_m.length===97',timeout=30000)
     chosen=page.evaluate('selected');assert chosen is not None
+    page.evaluate("""()=>{window.hashCanvas=()=>{const gl=explorer.gl,p=new Uint8Array(can.width*can.height*4);gl.readPixels(0,0,can.width,can.height,gl.RGBA,gl.UNSIGNED_BYTE,p);let hash=2166136261;for(let i=0;i<p.length;i+=16)hash=Math.imul(hash^p[i],16777619);return hash>>>0}}""")
+    page.wait_for_timeout(150);with_line=page.evaluate('window.hashCanvas()')
+    page.locator('#selectedTrail').uncheck();page.wait_for_timeout(150)
+    assert page.evaluate('window.hashCanvas()')!=with_line
+    page.locator('#selectedTrail').check()
     evidence['forecast']=page.evaluate('laboratory.prediction')
     page.locator('#rate').select_option('31557600')
-    page.evaluate('window.observedFrames=[];window.recordFrames=true;function observe(){if(window.recordFrames){window.observedFrames.push({t:performance.now(),render:motion.time,x:explorer.projected.find(p=>p.id===3)?.x});requestAnimationFrame(observe)}}requestAnimationFrame(observe)')
+    page.evaluate('window.observedFrames=[];window.recordFrames=true;function observe(){if(window.recordFrames){window.observedFrames.push({t:performance.now(),render:motion.time,x:explorer.projected.find(p=>p.id===3)?.x,pixels:window.observedFrames.length%5===0?window.hashCanvas():null});requestAnimationFrame(observe)}}requestAnimationFrame(observe)')
     page.locator('#play').click();page.wait_for_timeout(1800);page.locator('#play').click()
     page.wait_for_function('!busy');page.evaluate('window.recordFrames=false')
     frames=page.evaluate('window.observedFrames');evidence['frames']=frames
     assert len(frames)>=10
     assert len({round(f['x'] or 0,2) for f in frames})>=8
+    assert len({f['pixels'] for f in frames if f['pixels'] is not None})>=3
     assert max(f['render'] or 0 for f in frames)>min(f['render'] or 0 for f in frames)
     # Rotation and zoom survive while body motion remains actual backend evolution.
     page.locator('#view').press('ArrowRight');page.locator('#view').press('+')
@@ -53,6 +59,7 @@ def observe_parity(page, expected_sha=None):
     return evidence
 
 
+@pytest.mark.skipif(not os.environ.get('DYSON_LIVE_SHA'),reason='Requires explicit live acceptance dispatch')
 def test_live_skunkworks(chromium):
     expected=os.environ.get('DYSON_LIVE_SHA')
     assert expected,'Live acceptance requires explicit deployed SHA'

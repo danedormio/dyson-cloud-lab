@@ -38,7 +38,9 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         env:
           DYSON_LIVE_SHA: ${{ github.sha }}
-        run: python -m pytest tests/test_live_skunkworks.py -v
+        run: |
+          python -m pytest tests/test_live_skunkworks.py -v
+          test -f test-artifacts/live-skunkworks-observations.json
       - name: Keep graphical evidence
         if: always()
         uses: actions/upload-artifact@v4
