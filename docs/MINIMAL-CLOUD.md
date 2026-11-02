@@ -104,3 +104,27 @@ coarse control model, not sub-hour response fidelity. The half-interval comparis
 now checks two-hour against one-hour control. The stellar stop radius is0.08AU
 to retain margin for the longer control interval. No forces or resource limits
 are increased to improve apparent capture.
+
+## Returning-browser startup correction (interface v1.2)
+
+The owner's existing profile failed despite a successful fresh-browser test.
+A stale legacy cookie/invalid older backup reproduced the error with all controls
+disabled. First Light now has its own `dyson_simple_session` cookie and
+`dyson-first-light-backups` IndexedDB namespace. The previous workbench cookie,
+backup database and physical world are not modified. Both views reuse the same
+server-side owner/capsule verification; no authentication checks are removed.
+
+Retry connection reruns startup and reads the latest committed state before
+playback continues. Start fresh archives the failed First Light backup, forgets
+only that view's cookie (at both supported paths), and creates a new cloud.
+Existing server worlds are not deleted by forgetting a cookie. If browser
+storage is unavailable, the scene can run as a clearly marked temporary session.
+The animation loop remains available after initial startup fails; controls have
+real retry/fresh-start handlers. Request timeouts and readable service-readiness
+errors replace indefinite waits. Physics and the two-hour controller are unchanged.
+
+Regression coverage includes the owner's old-profile failure, successful retry
+after an unavailable service, fresh-start archival, blocked browser storage,
+a lost step response, legacy identity/world preservation and owner-proof denial.
+Local synthetic test credentials are never real user data. The old backup is
+retained rather than automatically imported into the new independent view.

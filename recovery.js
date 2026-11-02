@@ -1,5 +1,5 @@
-/* One private, transactional backup per browser origin. Never log credentials. */
-window.RecoveryBackup = (() => {
+/* Private transactional backups, scoped by view. Never log credentials. */
+window.RecoveryBackup = (function createRecoveryBackup(databaseName = 'dyson-private-backups') {
   let db, record;
   const format = 'dyson-private-backup-v1';
   function transaction(mode, operation) {
@@ -24,7 +24,7 @@ window.RecoveryBackup = (() => {
   async function init() {
     if (record) return record;
     db = await new Promise((resolve, reject) => {
-      const request = indexedDB.open('dyson-private-backups', 1);
+      const request = indexedDB.open(databaseName, 1);
       request.onupgradeneeded = () => request.result.createObjectStore('backups');
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(Error('Browser backup storage is unavailable'));
@@ -89,6 +89,16 @@ window.RecoveryBackup = (() => {
     await init();
     await write({format, credential: credential(), capsule: null});
   }
+  async function archiveAndReset() {
+    const previous = await refresh();
+    const next = {format, credential: credential(), capsule: null};
+    await transaction('readwrite', store => {
+      store.put(previous, 'archived-' + Date.now() + '-' + crypto.randomUUID());
+      store.put(next, 'current');
+    });
+    record = next;
+    return next;
+  }
   async function download() {
     const current = await refresh();
     if (!current.capsule) throw Error('No recovery backup is available yet');
@@ -99,5 +109,5 @@ window.RecoveryBackup = (() => {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 3000);
   }
-  return {init, refresh, accept, reset, download, format};
+  return {init, refresh, accept, reset, archiveAndReset, download, format, create: createRecoveryBackup};
 })();
