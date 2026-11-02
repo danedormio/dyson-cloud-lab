@@ -69,6 +69,7 @@ class ExplorerView {
     const line=(points,color)=>{if(!points.length)return;gl.bindBuffer(gl.ARRAY_BUFFER,this.lines);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(points.flat()),gl.DYNAMIC_DRAW);gl.vertexAttribPointer(this.position,3,gl.FLOAT,false,0,0);gl.disableVertexAttribArray(this.normal);gl.vertexAttrib3f(this.normal,0,0,1);gl.uniform3f(this.uniform.Center,0,0,0);gl.uniform1f(this.uniform.Radius,1);gl.uniform1f(this.uniform.Lit,0);gl.uniform3fv(this.uniform.Color,color);gl.drawArrays(gl.LINE_STRIP,0,points.length)};
     if(options.shell)for(const r of [snapshot.scenario?.inner_au||.8,snapshot.scenario?.outer_au||4])line(Array.from({length:181},(_,i)=>relative([snapshot.bodies[0].x_m/149597870700+r*Math.cos(i*Math.PI/90),snapshot.bodies[0].y_m/149597870700+r*Math.sin(i*Math.PI/90),snapshot.bodies[0].z_m/149597870700])),[.18,.3,.43]);
     line(options.trail.map(p=>relative(p.slice(0,3).map(v=>v/149597870700))),[.15,.5,.68]);
+    line((options.forecast||[]).map(p=>relative(p.map(v=>v/149597870700))),[1,.8,.25]);
     line((options.extraTrails||[]).map(p=>relative(p.map(v=>v/149597870700))),[1,.65,.25]);
   }
 }

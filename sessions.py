@@ -109,7 +109,7 @@ class SessionStore:
             raise SessionError(413, "Body limit exceeded")
         return checkpoint, signed["issued_at"], signed["revision"]
 
-    def run(self, token, operation, recovery_token=None, recovery_capsule=None):
+    def run(self, token, operation, recovery_token=None, recovery_capsule=None, cost=1):
         """Atomic world update, optionally bootstrapping from a client backup.
 
         Recovery verifies both server provenance and an independent browser-held
@@ -170,7 +170,9 @@ class SessionStore:
             sid = hashlib.sha256(token.encode()).hexdigest()
             quota = db.execute("SELECT window_start, requests FROM request_limits WHERE id=?", (old_sid or sid,)).fetchone()
             window, requests = quota if quota and now - quota[0] < 60 else (now, 0)
-            if requests >= self.max_requests:
+            if not isinstance(cost, int) or not 1 <= cost <= 25:
+                raise ValueError("invalid operation cost")
+            if requests + cost > self.max_requests:
                 raise SessionError(429, "Session request limit reached; retry in one minute")
             result = operation(world, sid, key, now)
             current = encode(world.checkpoint())
@@ -187,7 +189,7 @@ class SessionStore:
                        (id, signing_key, checkpoint, expires, recovery_owner, saved_at, revision) VALUES (?, ?, ?, ?, ?, ?, ?)""",
                        (sid, key, current, now + self.ttl, owner, saved_at, revision))
             db.execute("INSERT OR REPLACE INTO request_limits VALUES (?, ?, ?)",
-                       (sid, window, requests + 1))
+                       (sid, window, requests + cost))
             if isinstance(result, dict) and "engine" in result:
                 result["recovery"] = (self.recovery_capsule(world.checkpoint(), owner, saved_at, revision)
                                       if self.recovery_key and owner else None)

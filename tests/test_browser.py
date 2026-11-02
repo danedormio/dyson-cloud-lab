@@ -469,3 +469,20 @@ def test_camera_remains_live_during_step_request(chromium, backend):
     assert 't=0.00' in page.locator('#state').inner_text()
     expect(page.locator('#state')).to_contain_text('t=1.00')
     page.close()
+
+
+def test_prototype_core_parity_observed_in_browser(chromium,backend,monkeypatch):
+    from test_live_skunkworks import observe_parity
+    monkeypatch.setenv('DYSON_TEST_URL',backend.url)
+    context=chromium.new_context(viewport={'width':1400,'height':1000});page=context.new_page()
+    evidence=observe_parity(page)
+    assert evidence['two_year_delta_s']==63115200
+    import math
+    points=evidence['points'];normalized=[[x/math.hypot(*p) for x in p] for p in points]
+    for axis in range(3):
+        assert min(p[axis] for p in normalized)<-.8 and max(p[axis] for p in normalized)>.8
+    ARTIFACTS.mkdir(exist_ok=True)
+    (ARTIFACTS/'prototype-parity-observations.json').write_text(json.dumps(evidence,indent=2))
+    page.screenshot(path=str(ARTIFACTS/'prototype-parity-desktop.png'),full_page=True)
+    page.set_viewport_size({'width':390,'height':844});page.screenshot(path=str(ARTIFACTS/'prototype-parity-mobile.png'),full_page=True)
+    context.close()

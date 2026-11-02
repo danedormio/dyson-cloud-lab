@@ -23,29 +23,37 @@ class CloudWorld:
         self.lock = threading.RLock()
         self.reset(cloud_count)
 
-    def reset(self, cloud_count=72, cloud_mass_kg=1.0, inner_au=0.8, outer_au=4.0, inclination_deg=0.0):
+    def reset(self, cloud_count=72, cloud_mass_kg=1.0, inner_au=0.8, outer_au=4.0, inclination_deg=0.0, geometry="sphere"):
         with self.lock:
             values = (cloud_mass_kg, inner_au, outer_au, inclination_deg)
             if (not all(math.isfinite(float(v)) for v in values)
                     or not 0 <= int(cloud_count) <= 200
                     or not 0 < cloud_mass_kg <= 1e20
                     or not 0.2 <= inner_au < outer_au <= 20
-                    or not 0 <= inclination_deg <= 90):
+                    or not 0 <= inclination_deg <= 90 or geometry not in ("sphere", "disk")):
                 raise ValueError("invalid bounded cloud scenario")
             self.scenario = dict(cloud_count=int(cloud_count), cloud_mass_kg=cloud_mass_kg,
-                                 inner_au=inner_au, outer_au=outer_au, inclination_deg=inclination_deg)
+                                 inner_au=inner_au, outer_au=outer_au, inclination_deg=inclination_deg, geometry=geometry)
             self.boundary_events = []
             self.sim = rebound.Simulation()
             self.sim.units = ("m", "s", "kg")
             self.sim.integrator = "ias15"
             self.sim.dt = 3600.0
-            self.scenario_version = (2 if self.scenario == dict(cloud_count=int(cloud_count),
-                cloud_mass_kg=1.0, inner_au=0.8, outer_au=4.0, inclination_deg=0.0) else 3)
+            self.scenario_version = 4 if geometry == "sphere" else 3
             self.names = ["Sun", "Earth"]
             self.roles = ["star", "planet"]
             self.sim.add(m=SUN_KG, x=0, y=0, z=0)
             earth_v = math.sqrt(self.sim.G * (SUN_KG + EARTH_KG) / AU)
             self.sim.add(m=EARTH_KG, x=AU, y=0, z=0, vy=earth_v)
+            seed = 122333
+            def random_unit():
+                nonlocal seed
+                seed = (1664525*seed + 1013904223) & 0xffffffff
+                z = 2*seed/4294967296 - 1
+                seed = (1664525*seed + 1013904223) & 0xffffffff
+                a = 2*math.pi*seed/4294967296
+                r = math.sqrt(1-z*z)
+                return [r*math.cos(a), r*math.sin(a), z]
             for i in range(int(cloud_count)):
                 # Deterministic, non-coincident orbital phases and radii.
                 radius = (inner_au + (outer_au-inner_au) * (i + 0.5) / max(1, cloud_count)) * AU
@@ -55,13 +63,21 @@ class CloudWorld:
                 speed = math.sqrt(self.sim.G * SUN_KG / radius)
                 # Deterministic tilted orbital planes; exact old fixture at zero tilt.
                 inc = math.radians(inclination_deg) * math.sin(phase)
-                self.sim.add(m=cloud_mass_kg,
-                             x=radius * math.cos(phase),
-                             y=radius * math.sin(phase) * math.cos(inc),
-                             z=radius * math.sin(phase) * math.sin(inc),
-                             vx=-speed * math.sin(phase),
-                             vy=speed * math.cos(phase) * math.cos(inc),
-                             vz=speed * math.cos(phase) * math.sin(inc))
+                if geometry == "sphere":
+                    radial, axis = random_unit(), random_unit()
+                    tangent = [radial[1]*axis[2]-radial[2]*axis[1],
+                               radial[2]*axis[0]-radial[0]*axis[2],
+                               radial[0]*axis[1]-radial[1]*axis[0]]
+                    norm = math.hypot(*tangent)
+                    position = [radius*x for x in radial]
+                    velocity = [speed*x/norm for x in tangent]
+                else:
+                    position = [radius*math.cos(phase), radius*math.sin(phase)*math.cos(inc),
+                                radius*math.sin(phase)*math.sin(inc)]
+                    velocity = [-speed*math.sin(phase), speed*math.cos(phase)*math.cos(inc),
+                                speed*math.cos(phase)*math.sin(inc)]
+                self.sim.add(m=cloud_mass_kg, x=position[0], y=position[1], z=position[2],
+                             vx=velocity[0], vy=velocity[1], vz=velocity[2])
                 self.names.append(f"Cloud {i+1}")
                 self.roles.append("cloud")
             self.sim.move_to_com()
@@ -110,13 +126,46 @@ class CloudWorld:
             self.reference_time = self.sim.t
             return self.state()
 
-    def step(self, seconds=3600):
+    def step(self, seconds=3600, samples=1):
         seconds = float(seconds)
-        if not 0 < seconds <= 30 * DAY:
-            raise ValueError("step must be between 0 and 30 days")
+        if not 0 < seconds <= 30 * DAY or not 1 <= samples <= 32:
+            raise ValueError("step must be between 0 and 30 days; 1–32 samples")
         with self.lock:
-            self.sim.integrate(self.sim.t + seconds, exact_finish_time=1)
-            return self.state()
+            start = self.sim.t
+            frames = []
+            for i in range(samples+1):
+                if i:
+                    self.sim.integrate(start + seconds*i/samples, exact_finish_time=1)
+                if samples > 1:
+                    frames.append({"time_s":float(self.sim.t),
+                        "positions_m":[[p.x,p.y,p.z] for p in self.sim.particles]})
+            result = self.state()
+            if frames:
+                result["motion_frames"] = frames
+            return result
+
+    def trajectory(self, body_id):
+        """Bounded no-intervention N-body forecast on an isolated REBOUND copy."""
+        if not 0 <= body_id < len(self.sim.particles):
+            raise ValueError("unknown body")
+        with self.lock:
+            simulation = self.sim.copy()
+            orbit = self.state()['orbits'][body_id]
+        horizon = 365.25*DAY
+        if orbit and orbit['specific_energy_j_kg'] < 0:
+            mu = simulation.G*(simulation.particles[0].m+simulation.particles[body_id].m)
+            a = -mu/(2*orbit['specific_energy_j_kg'])
+            horizon = min(2*365.25*DAY,2*math.pi*math.sqrt(a*a*a/mu))
+        elif orbit:
+            horizon = 180*DAY
+        start = simulation.t
+        points = []
+        for i in range(97):
+            simulation.integrate(start+horizon*i/96,exact_finish_time=1)
+            p = simulation.particles[body_id]
+            points.append([float(p.x),float(p.y),float(p.z)])
+        return {"body_id":body_id,"start_time_s":start,"horizon_s":horizon,
+                "positions_m":points,"model":"REBOUND IAS15 N-body forecast; no future insertions/control"}
 
     def restore(self, checkpoint):
         """Restore a validated checkpoint into a NEW REBOUND simulation atomically.

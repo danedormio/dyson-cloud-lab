@@ -52,8 +52,10 @@ and pinned references are tab-local and are not recovered with physical backups.
 
 ## Scientific interpretation and boundaries
 
-- Gravity remains mutual Newtonian N-body IAS15 with a moving Sun. Default
-  Sun/Earth/72 one-kilogram cloud conditions retain the existing fixture.
+- Gravity remains mutual Newtonian N-body IAS15 with a moving Sun. New default
+  Sun/Earth/72 one-kilogram clouds use a deterministic spherical ensemble (scenario
+  version4). Existing disk checkpoints preserve their original coordinates; use
+  Load spherical cloud to explicitly start the new scenario.
   Parameterized geometry is deterministic and stored in physical checkpoints.
 - Arrival position is 5.6 AU upstream in the chosen velocity direction plus the
   signed impact offset in its perpendicular plane. Azimuth/elevation orient the
@@ -87,3 +89,43 @@ The next substantial milestone should select and independently validate a
 specific finite-resource actuator/coupling reference before enabling a capture
 or momentum-exchange controller. This deliverable supplies gravity baselines,
 replay and diagnostics for that investigation without inventing that mechanism.
+
+
+## Prototype core parity repair
+
+The actual archived v0.14 HTML was recovered and byte-verified with SHA-256
+`ca2092e8b4a20b759284e5fd9c75adb157e636ad40688891bf055b5c8f1a2fd3`
+(44,367 bytes). It was executed in Chromium: 900 visible agents had independent
+radial/tangential directions, motion changed during Play, launch added an object,
+and rates included 2 years/s. Its HTML title says0.12 while its visible header
+says0.14; the archived artifact was not replaced with a reconstruction. The old
+fixed-Sun integrator and coupling proxies were not copied into the REBOUND model.
+
+New worlds now start with a spherical isotropic ensemble. Disk/tilted geometry
+remains available, and saved worlds are never silently rewritten. A prominent
+Load spherical cloud action upgrades an old disk world by explicit reset. The
+existing202-body ceiling remains: this restores core interaction, not the old
+900-body visual population or unvalidated capture/controller behavior.
+
+Play renders between dense positions actually sampled by IAS15; it never
+extrapolates uncomputed physical motion. The render and committed clocks are both
+shown. Rates span1hour through2years of target simulated time per real second;
+actual throughput depends on the backend. Advance selected interval commits the
+chosen total exactly, including2years (63,115,200 seconds), using sequential
+steps of at most30days. Stop advance preserves progress after the current step;
+uncertain requests are not repeated automatically. Pausing Play stops future
+requests after any in-flight chunk. No integration/body/quota limit is increased.
+
+Click a body or choose it in the object list to draw a gold full-N-body REBOUND
+forecast on a copy. It is sampled97times over up to2years (one estimated orbit
+when shorter;180days for unbound objects). It is a no-future-insertion/control
+forecast, not a circular visual proxy or an exact future observation. Blue paths
+remain measured history. Forecasts cost25existing quota units, bounding CPU work
+without raising the request allowance. Camera rotation/zoom/pan remain unchanged.
+
+Deployed acceptance runs only on explicit dispatch of the existing verification
+workflow, against the fixed existing Skunkworks URL and exact dispatched commit.
+It opens a fresh isolated browser session, observes actual projected movement,
+clicks a body/trajectory, rotates/zooms, launches, and confirms a full2-year
+advance. JSON observations and desktop/mobile screenshots are retained with CI.
+This check cannot be replaced with a local suite or Render live status alone.

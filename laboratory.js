@@ -1,10 +1,11 @@
 /* Experiment presentation. All authoritative dynamics and diagnostics come from REBOUND. */
 class Laboratory {
   constructor(){
-    this.reference=null;this.samples=[];this.paths=new Map();this.lastTime=null;this.lastCount=0;
+    this.prediction=null;this.predictionToken=0;this.reference=null;this.samples=[];this.paths=new Map();this.lastTime=null;this.lastCount=0;
     this.fields={cloud_count:'count',cloud_mass_kg:'cloudMass',inner_au:'innerRadius',outer_au:'outerRadius',inclination_deg:'inclination'};
     this.launchFields={speed_kms:'speed',impact_au:'impact',offset_degrees:'angle',mass_kg:'arrivalMass',azimuth_deg:'azimuth',elevation_deg:'elevation'};
     new ResizeObserver(()=>{if(snapshot)this.inspect()}).observe(document.querySelector('#experimentChart'));
+    document.querySelector('#geometry').onchange=()=>this.geometryChanged();this.geometryChanged();
     document.querySelector('#loadPreset').onclick=()=>this.preset();
     document.querySelector('#remember').onclick=()=>{try{const scenario=this.scenario(),launch=this.launch();if(!scenario||!launch)return;localStorage.setItem('dyson-lab-setup-v1',JSON.stringify({scenario,launch}));this.message('Setup remembered on this browser. Physics state is unchanged.')}catch(e){this.message('Setup could not be saved.')}};
     document.querySelector('#recall').onclick=()=>{try{const data=JSON.parse(localStorage.getItem('dyson-lab-setup-v1'));if(!data)throw Error();this.setScenario(data.scenario);this.fill(this.launchFields,data.launch);this.message('Setup recalled. Replay to run it; current world unchanged.')}catch(e){this.message('No readable saved setup on this browser.')}};
@@ -15,18 +16,19 @@ class Laboratory {
   }
   message(text){document.querySelector('#experimentStatus').textContent=text;}
   fill(fields,values){for(const [key,id] of Object.entries(fields))if(values?.[key]!==undefined)document.querySelector('#'+id).value=values[key]}
-  setScenario(values){this.fill(this.fields,values)}
+  setScenario(values){this.fill(this.fields,values);document.querySelector('#geometry').value=values.geometry||'disk';this.geometryChanged()}
+  geometryChanged(){const sphere=document.querySelector('#geometry').value==='sphere';document.querySelector('#inclination').disabled=sphere;document.querySelector('#geometryHint').textContent=sphere?'Spherical: deterministic isotropic radial and tangential directions. Reset cloud applies it.':'Disk/legacy scenario: choose Spherical then Reset cloud to restore the 3D ensemble.'}
   values(fields){const result={};for(const [key,id] of Object.entries(fields)){const input=document.querySelector('#'+id);if(!input.checkValidity()||!Number.isFinite(Number(input.value))||input.value===''){input.reportValidity();this.message('Enter a finite value inside the displayed bounds.');return null}result[key]=Number(input.value)}return result}
-  scenario(){const s=this.values(this.fields);if(s&&s.inner_au>=s.outer_au){this.message('Outer radius must exceed inner radius.');return null}return s}
+  scenario(){const s=this.values(this.fields);if(s&&s.inner_au>=s.outer_au){this.message('Outer radius must exceed inner radius.');return null}if(s)s.geometry=document.querySelector('#geometry').value;return s}
   launch(){return this.values(this.launchFields)}
   preset(){
     const kind=document.querySelector('#preset').value;
-    this.setScenario({cloud_count:32,cloud_mass_kg:1,inner_au:.8,outer_au:4,inclination_deg:25});
+    this.setScenario({cloud_count:32,cloud_mass_kg:1,inner_au:.8,outer_au:4,inclination_deg:25,geometry:'sphere'});
     this.fill(this.launchFields,{speed_kms:kind==='bound'?10:40,impact_au:kind==='massive'?1:.5,offset_degrees:30,mass_kg:kind==='massive'?1e23:1,azimuth_deg:0,elevation_deg:kind==='massive'?0:12});
     document.querySelector('#brief').textContent=kind==='bound'?'Test an arrival initialized with negative two-body energy. It starts bound; this is not capture. Compare with the fast flyby.':kind==='massive'?'A hypothetical massive point body. Inspect Sun/Earth motion and the insertion ledger. No collision or hardware model.':'Measure an inclined gravity-only flyby. Select the arrival, step 30 days, follow its trajectory and compare a slower replay.';
     this.message('Parameters loaded. Press Replay scenario + arrival to begin.');
   }
-  clear(){this.samples=[];this.paths.clear();this.lastTime=null;this.lastCount=0;}
+  clear(){this.prediction=null;this.predictionToken++;this.samples=[];this.paths.clear();this.lastTime=null;this.lastCount=0;}
   accept(s){
     if(this.lastTime!==null&&s.time_s<this.lastTime)this.clear();
     if(s.time_s===this.lastTime&&s.bodies.length===this.lastCount)return;
@@ -34,6 +36,12 @@ class Laboratory {
     const sample={time_s:s.time_s,energy_relative_drift:s.energy_relative_drift,objects:[]};
     for(const b of s.bodies){if(b.role==='cloud'&&b.id!==selected)continue;let path=this.paths.get(b.id)||[];path.push([b.x_m,b.y_m,b.z_m]);if(path.length>500)path.shift();this.paths.set(b.id,path);const o=s.orbits?.[b.id];if(o)sample.objects.push({id:b.id,...o,momentum_kg_ms:[b.vx_ms,b.vy_ms,b.vz_ms].map(v=>b.mass_kg*v),kinetic_energy_j:.5*b.mass_kg*(b.vx_ms*b.vx_ms+b.vy_ms*b.vy_ms+b.vz_ms*b.vz_ms)})}
     this.samples.push(sample);if(this.samples.length>500)this.samples.shift();
+  }
+  async predict(id){
+    this.prediction=null;const token=++this.predictionToken;
+    if(id===null||!snapshot)return;
+    const start=snapshot.time_s,count=snapshot.bodies.length;
+    try{const result=await api('/api/trajectory',{body_id:id});if(token===this.predictionToken&&id===selected&&snapshot.bodies.length===count&&snapshot.time_s>=start){this.prediction=result;this.message(`Selected trajectory: ${result.positions_m.length} actual IAS15 samples over ${(result.horizon_s/86400).toFixed(1)} days; no future control/insertion. Gold=forecast, blue=measured history.`)}}catch(error){if(token===this.predictionToken)this.message('Trajectory unavailable: '+error.message)}
   }
   selectedTrail(){return (this.paths.get(selected)||[]).slice(-Number(document.querySelector('#trailLength').value));}
   inspect(){
