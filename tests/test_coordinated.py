@@ -92,3 +92,20 @@ def test_stellar_approach_stops_without_fake_capture():
     assert w.sim.t==before and result['halted']
     assert result['decision']=='Stellar approach limit'
     assert w.exchanged==0
+
+
+def test_remote_decisions_do_not_read_instantaneous_packet_geometry():
+    def commands(current_x):
+        w=CoordinatedCloud();w.launch();w.sim.t=10000;w.plan_time=0
+        w.observations=[[5000,[AU,.1*AU,0],[0,27000,0]]]
+        # Two different undelivered current packet states, same arrived telemetry.
+        packet=w.sim.particles[-1];packet.x=current_x*AU;packet.y=.2*AU
+        result=[]
+        def spy(i,j,impulse,dt,store_id):
+            if i==N+1:result.append((j,impulse))
+            return False
+        w.exchange=spy
+        w.controls(DT)
+        return result
+    first,second=commands(1.),commands(-1.)
+    assert first and first==second

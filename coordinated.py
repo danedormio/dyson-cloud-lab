@@ -119,9 +119,11 @@ class CoordinatedCloud:
         self.observations=[o for o in self.observations if now-o[0]<4*DAY]
         for k in range(N):
             node=self.sim.particles[k+1]
-            distance=norm(sub(vec(node),vec(packet)))
-            if now<self.plan_time+norm(vec(node))/C or distance>RANGE: continue
-            observed=next((o for o in reversed(self.observations) if o[0]<=now-distance/C),None)
+            if now<self.plan_time+norm(vec(node))/C: continue
+            # A measurement is usable only after its emitted signal can reach
+            # this receiver. No current packet geometry enters the decision.
+            observed=next((o for o in reversed(self.observations)
+                           if norm(sub(o[1],vec(node)))<=C*(now-o[0])),None)
             if observed is None: continue
             lag=now-observed[0]
             estimate=[x+v*lag for x,v in zip(observed[1],observed[2])]
@@ -134,8 +136,8 @@ class CoordinatedCloud:
             radial_target=max(-1500.,min(1500.,(TARGET-radius)/(80*DAY)))
             desired=[sign*circular*t+radial_target*x/radius for t,x in zip(tangent,r)]
             error=sub(desired,v)
-            line=sub(vec(packet),vec(node)); length=norm(line)
-            if not length: continue
+            line=sub(estimate,vec(node)); length=norm(line)
+            if not length or length>RANGE: continue
             unit=[x/length for x in line]
             # Distributed proportional rule; short local prediction, no optimizer.
             command=PACKET_MASS*dot(error,unit)*dt/(3*DAY)
