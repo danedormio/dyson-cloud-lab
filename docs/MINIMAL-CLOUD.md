@@ -152,3 +152,17 @@ still uses bounded gravity/control steps. Rate is never a force multiplier.
 Full 900-body density, original 3D launch-angle controls and offline execution
 are not matched by this increment; do not claim overall prototype superiority
 or owner acceptance based on these corrections.
+
+
+## Hosted playback correction (v1.4 interface)
+
+Hosted acceptance exposed several-second physics updates. The view now blends
+only previously acknowledged positions and displayed time while the next state
+is computing; it does not extrapolate or alter trajectories. Pause immediately
+shows the latest computed sample. Numeric diagnostics describe the latest
+computed state, as disclosed in the model details. Backend-limited target rates
+remain explicit. No physics,
+force, controller interval or budget changes. A delayed-response browser test
+checks visible movement with unchanged computed time, never beyond the latest
+sample, and exact pause positions. This is part of the same owner-requested
+usability correction, not a new feature milestone.
