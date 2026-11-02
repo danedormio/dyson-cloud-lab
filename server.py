@@ -130,15 +130,15 @@ def create_app(store=None):
         # through error serialization (non-finite JSON otherwise yields a 500).
         return JSONResponse({"detail": "Invalid request fields or JSON"}, 422)
 
-    def run(request, response, operation, cost=1, **recovery):
+    def run(request, response, operation, cost=1, cookie_name=COOKIE_NAME, **recovery):
         try:
-            result, token, _ = app.state.sessions.run(request.cookies.get(COOKIE_NAME), operation, cost=cost, **recovery)
+            result, token, _ = app.state.sessions.run(request.cookies.get(cookie_name), operation, cost=cost, **recovery)
         except SessionError as exc:
             raise HTTPException(exc.status, exc.message) from exc
         except (ValueError, OverflowError, RecursionError) as exc:
             raise HTTPException(422, "Invalid simulation request") from exc
         # Refresh browser expiry alongside the server's sliding inactivity TTL.
-        response.set_cookie(COOKIE_NAME, token, httponly=True, samesite="strict",
+        response.set_cookie(cookie_name, token, httponly=True, samesite="strict",
                             secure=request.url.scheme == "https", path="/api",
                             max_age=int(app.state.sessions.ttl))
         return result
@@ -235,19 +235,42 @@ def create_app(store=None):
         w.minimal_snapshot = cloud.snapshot()
         return result
 
+    # Separate browser identity keeps old workbench recovery from gating First Light.
+    minimal_cookie = "dyson_simple_session"
+
+    @app.post("/api/simple/session")
+    def minimal_bootstrap(payload: SessionRequest, request: Request, response: Response):
+        if payload.has_backup and not request.cookies.get(minimal_cookie):
+            raise HTTPException(401, "Resume the saved First Light backup")
+        return run(request, response, lambda w, *_: minimal(w, "state"),
+                   cookie_name=minimal_cookie, recovery_token=payload.recovery_token)
+
+    @app.post("/api/simple/recover")
+    def minimal_recover(payload: RecoveryRequest, request: Request, response: Response):
+        return run(request, response, lambda w, *_: minimal(w, "state"),
+                   cookie_name=minimal_cookie, recovery_token=payload.credential,
+                   recovery_capsule=payload.capsule)
+
+    @app.delete("/api/simple/session")
+    def minimal_forget(response: Response):
+        # Forget only this view's cookie; do not delete any world or browser backup.
+        response.delete_cookie(minimal_cookie, path="/api", httponly=True, samesite="strict")
+        response.delete_cookie(minimal_cookie, path="/", httponly=True, samesite="strict")
+        return {"status": "forgotten"}
+
     @app.get("/api/simple")
     def minimal_state(request: Request, response: Response):
-        return run(request, response, lambda w, *_: minimal(w, "state"))
+        return run(request, response, lambda w, *_: minimal(w, "state"), cookie_name=minimal_cookie)
 
     @app.post("/api/simple/{action}")
     def minimal_action(action: str, payload: MinimalLaunch, request: Request, response: Response):
         if action not in ("launch", "step", "reset"):
             raise HTTPException(404, "Unknown action")
-        return run(request, response, lambda w, *_: minimal(w, action, payload))
+        return run(request, response, lambda w, *_: minimal(w, action, payload), cookie_name=minimal_cookie)
 
     @app.get("/simple")
     def minimal_frontend():
-        return FileResponse(Path(__file__).with_name("simple.html"))
+        return FileResponse(Path(__file__).with_name("simple.html"), headers={"Cache-Control": "no-store"})
 
     @app.get("/")
     def browser_frontend():
