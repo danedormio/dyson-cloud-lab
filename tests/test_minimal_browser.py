@@ -7,10 +7,10 @@ def test_minimal_launch_controls_motion_and_mobile(backend,chromium):
     page=chromium.new_page(viewport={'width':1440,'height':960})
     errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
     page.goto(backend.url+'/simple')
-    page.wait_for_function('window.cloudView?.world?.time>=2')
-    page.click('#play');page.wait_for_timeout(600)
+    page.wait_for_function('!!window.cloudView?.world')
+    page.wait_for_timeout(600)
     initial=page.evaluate('window.cloudView.world')
-    assert initial['time']>0 and len(initial['bodies'])==49
+    assert initial['time']==0 and len(initial['bodies'])==49
     # Scene has actually moving resolved positions, not a loading placeholder.
     page.click('#play');page.wait_for_function('(t)=>window.cloudView.world.time>t',arg=initial['time'])
     page.click('#play');page.wait_for_timeout(600)
@@ -23,13 +23,14 @@ def test_minimal_launch_controls_motion_and_mobile(backend,chromium):
     assert page.locator('#offsetValue').inner_text()!='0.65 AU'
     page.locator('#offset').evaluate("el=>{el.value='0.65'}")
     page.locator('#offset').dispatch_event('input')
-    # Launch during live playback must queue rather than silently drop the click.
+    # Launch during live playback queues the click and returns to a paused scene.
     page.click('#play')
     page.click('#launch');page.wait_for_function('window.cloudView.world.packet!==null')
-    page.click('#play');page.wait_for_timeout(600)
-    assert page.evaluate('window.cloudView.world.time')<=4
+    assert page.locator('#play').inner_text()=='Play'
+    page.wait_for_timeout(600)
+    assert page.evaluate('window.cloudView.world.time')==0
     assert page.locator('#launch').is_disabled()
-    page.click('#play');page.wait_for_function('window.cloudView.world.time>=8');page.click('#play')
+    page.click('#play');page.wait_for_function('window.cloudView.world.time>=2');page.click('#play')
     page.wait_for_timeout(600)
     assert page.evaluate('window.cloudView.trail.length')>=3
     # Selection is an actual canvas pointer operation.
@@ -56,17 +57,50 @@ def test_minimal_launch_controls_motion_and_mobile(backend,chromium):
 def test_minimal_scene_resumes_after_server_storage_loss(backend,chromium):
     page=chromium.new_page(viewport={'width':1200,'height':900})
     page.goto(backend.url+'/simple')
-    page.wait_for_function('window.cloudView?.world?.time>=2')
-    page.click('#play');page.wait_for_timeout(600)
+    page.wait_for_function('!!window.cloudView?.world')
+    page.wait_for_timeout(600)
     page.click('#launch');page.wait_for_function('window.cloudView.world.packet!==null')
     initial=page.evaluate('window.cloudView.world.bodies')
     # Simulate an ephemeral service redeploy; same recovery key, lost server DB.
     backend.stop();backend.db.unlink();backend.start()
     page.reload()
     page.wait_for_function('!!window.cloudView?.world?.packet')
-    page.click('#play');page.wait_for_timeout(600)
+    page.wait_for_timeout(600)
+    assert page.locator('#play').inner_text()=='Play'
     recovered=page.evaluate('window.cloudView.world')
     assert recovered['packet'] is not None and len(recovered['bodies'])==len(initial)
     assert recovered['plan']=='Attempt capture'
     assert page.locator('#decision').inner_text()!='Preparing the cloud'
+    page.close()
+
+
+def test_cloud_volume_paused_start_rate_and_camera(backend,chromium):
+    page=chromium.new_page(viewport={'width':1440,'height':960})
+    page.goto(backend.url+'/simple')
+    page.wait_for_function('!!window.cloudView?.world')
+    initial=page.evaluate('window.cloudView.world')
+    assert initial['time']==0
+    assert len(set(round(math.dist((b['x'],b['y'],b['z']),(0,0,0)),3) for b in initial['bodies'][1:]))>40
+    assert min(b['z'] for b in initial['bodies'])<-.5 and max(b['z'] for b in initial['bodies'])>.5
+    page.wait_for_timeout(1100)
+    assert page.evaluate('window.cloudView.world.time')==0
+    assert page.locator('#play').inner_text()=='Play'
+    steps=[]
+    page.on('request',lambda r: steps.append(r.post_data_json['days']) if r.url.endswith('/api/simple/step') else None)
+    page.select_option('#rate','0.25');page.click('#play')
+    page.wait_for_function('window.cloudView.world.time>0')
+    page.click('#play');page.wait_for_timeout(400)
+    slow=list(steps);steps.clear()
+    page.select_option('#rate','16');page.click('#play')
+    page.wait_for_function('(t)=>window.cloudView.world.time>t+2',arg=page.evaluate('window.cloudView.world.time'))
+    page.click('#play');page.wait_for_timeout(400)
+    assert slow and steps and min(steps)>max(slow)*10
+    canvas=page.locator('canvas');before=canvas.screenshot()
+    box=canvas.bounding_box();page.mouse.move(box['x']+600,box['y']+300)
+    page.mouse.down();page.mouse.move(box['x']+750,box['y']+390,steps=8);page.mouse.up()
+    assert canvas.screenshot()!=before
+    page.click('#reset');page.wait_for_function('window.cloudView.world.time===0')
+    assert page.locator('#play').inner_text()=='Play'
+    Path('test-artifacts').mkdir(exist_ok=True)
+    page.screenshot(path='test-artifacts/cloud-volume-paused.png')
     page.close()

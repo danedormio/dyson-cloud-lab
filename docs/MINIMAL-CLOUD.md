@@ -5,7 +5,7 @@ worlds remain available at `/`; this milestone does not replace them or migrate
 private data. The new scene uses the same ownership, request limits and signed
 checkpoint system, with its own nested physical state.
 
-Use the default 45 km/s, 0.65 AU arrival first. Launch and let time advance.
+Use the default 45 km/s, 0.65 AU arrival first. Launch places the packet while paused; press Play to advance. Reset and reconnect also pause. Use the Playback selector (¼, 1, 4 or 16 simulated days per real second); these are target rates, limited by backend throughput.
 The dashed line is straight initial aim geometry, not a gravity forecast.
 The amber trail is actual sampled packet history. Mint links show active
 packet–station interaction. Reset, turn coordination off, and launch again.
@@ -14,14 +14,14 @@ Next try 80 km/s (limited assistance) and 180 km/s (stand aside).
 
 ## Model contract
 
-- Version `minimal-cloud-v1.1`; SI barycentric Newtonian mutual point-mass gravity,
+- Version `minimal-cloud-v1.3`; SI barycentric Newtonian mutual point-mass gravity,
   REBOUND 4 IAS15, epsilon 1e-10, initial dt 7200 seconds, minimum internal dt
   1 second. Control is symmetric gravity/impulse/gravity splitting at 7200-second
   ticks. Plan/sensing delays round up to a control tick. No relativistic regime.
-- Forty-eight resolved stations in three planar rings, 0.8, 1.2 and 1.6 AU;
-  a deterministic small phase perturbation avoids numerically degenerate exact
-  symmetry. This is deliberately a flat, small cloud, with camera tilt rather
-  than a claim of a spherical population. Each station is 1e18 kg. Total 4.8e19
+- Forty-eight resolved stations distributed through a spherical shell from 0.8
+  to 1.6 AU with independent circular orbital planes, deterministic seed 122333.
+  Each rendered station is a resolved body, not cosmetic population inflation.
+  This is a sparse sample compared with the archived 900-agent prototype. Each station is 1e18 kg. Total 4.8e19
   kg = 8.04e-6 Earth masses, allocated from the provisional asteroid-belt ceiling
   of approximately 0.0005 Earth masses in the canonical inventory ledger.
   Composition, extraction/construction work, hardware feasibility and industrial
@@ -52,7 +52,7 @@ Next try 80 km/s (limited assistance) and 180 km/s (stand aside).
   the 1.2 AU region, with direction selected from packet angular momentum.
 - Station decisions: delayed packet observation, constant-velocity prediction,
   projected proportional action toward target velocity, and local resource veto.
-  Nearest ring neighbors use locally sensed radial relative-velocity damping.
+  Spatially nearest neighbors use locally sensed radial relative-velocity damping.
   Global plan travel includes incoming observation and outgoing broadcast delay.
   Remote packet observations have range/c age; finite control ticks limit timing
   precision. Neighbor sensing is a local ideal observation at each control tick.
@@ -128,3 +128,27 @@ after an unavailable service, fresh-start archival, blocked browser storage,
 a lost step response, legacy identity/world preservation and owner-proof denial.
 Local synthetic test credentials are never real user data. The old backup is
 retained rather than automatically imported into the new independent view.
+
+
+## Experience correction after owner rejection of v1.2
+
+The owner rejected v1.2 as inferior to the original HTML prototype. Startup
+checks established execution, not product acceptance. Archived v0.14 source
+was retrieved from the canonical Notion archive and SHA-256 verified as
+ca2092e8b4a20b759284e5fd9c75adb157e636ad40688891bf055b5c8f1a2fd3.
+It starts paused, has 900 isotropically distributed agents and an exposed rate
+selector. This correction restores paused startup/launch/reset, rate control,
+and actual 3D cloud geometry, without importing its heuristic physics.
+Per-station initial orbital-energy envelopes are saved explicitly; old
+snapshots retain their original ring envelopes. Nearest-neighbor selection uses
+actual current 3D positions; packet eccentricity uses the full angular-momentum
+vector. Total mass and actuator/resource limits are unchanged.
+
+The v1.3 cookie/backup namespace is separate from v1.2, so its existing saved
+ring experiments are retained untouched while the corrected entry opens a new
+cloud. Previous workbench storage also remains untouched. No saved simulation
+is silently rewritten. Physics step requests accept 1/12 to 2 days; the backend
+still uses bounded gravity/control steps. Rate is never a force multiplier.
+Full 900-body density, original 3D launch-angle controls and offline execution
+are not matched by this increment; do not claim overall prototype superiority
+or owner acceptance based on these corrections.

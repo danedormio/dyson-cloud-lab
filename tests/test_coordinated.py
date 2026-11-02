@@ -109,3 +109,16 @@ def test_remote_decisions_do_not_read_instantaneous_packet_geometry():
         return result
     first,second=commands(1.),commands(-1.)
     assert first and first==second
+
+
+def test_spatial_cloud_and_legacy_envelopes():
+    w=CoordinatedCloud()
+    bodies=list(w.sim.particles)[1:]
+    assert min(p.z for p in bodies)<-.5*AU and max(p.z for p in bodies)>.5*AU
+    assert len(set(round(norm([p.x,p.y,p.z])/AU,3) for p in bodies))>40
+    for p,r in zip(bodies,w.reference_radii):
+        assert abs(sum(x*v for x,v in zip([p.x,p.y,p.z],[p.vx,p.vy,p.vz])))<1e-7*r*norm([p.vx,p.vy,p.vz])
+    saved=w.snapshot();restored=CoordinatedCloud(saved)
+    assert restored.reference_radii==w.reference_radii
+    del saved['reference_radii']
+    assert CoordinatedCloud(saved).reference_radii==[(.8+.4*(k//16))*AU for k in range(N)]
