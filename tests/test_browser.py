@@ -422,6 +422,13 @@ def test_playable_workshop_replay_results_and_private_recovery(chromium, backend
     assert exported['format']=='dyson-gravity-experiment-v1'
     assert len(exported['samples'])==2
     assert len(exported['comparison']['points'])==2
+    first=exported['samples'][0]['objects'][-1]
+    last=exported['samples'][-1]['objects'][-1]
+    final=exported['final']['bodies'][-1]
+    initial_body=initial['bodies'][-1]
+    assert first['momentum_kg_ms']==[initial_body['mass_kg']*initial_body[k] for k in ('vx_ms','vy_ms','vz_ms')]
+    assert last['momentum_kg_ms']==[final['mass_kg']*final[k] for k in ('vx_ms','vy_ms','vz_ms')]
+    expect(page.locator('#experimentReadout')).to_contain_text('Measured Δp')
     assert exported['scenario']['inclination_deg']==25
     assert all(word not in raw for word in ('credential','signature','recovery_token','owner'))
     backup=download_checkpoint(page)

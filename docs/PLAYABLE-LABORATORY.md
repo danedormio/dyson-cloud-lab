@@ -26,7 +26,7 @@ No production hosting changes are required by this launch method.
 
 1. **Inclined flyby:** load the preset, Replay scenario + arrival, select/follow
    the tracked body, step 30 days several times and inspect its Sun-relative
-   distance, speed, radial motion and osculating elements. Pin the run, reduce
+   distance, speed, radial motion, osculating elements and measured vector momentum/kinetic-energy change at object scale. Pin the run, reduce
    speed, replay and compare distance curves at matched simulation times.
 2. **Bound at entry:** load that preset and replay. Negative two-body energy is
    an initial condition, not evidence of capture. Watch how the orbit changes
@@ -66,6 +66,9 @@ and pinned references are tab-local and are not recovered with physical backups.
   closed integration. Sun-scale residuals can hide small-body error. The ledger
   is state accounting, not independent experimental validation or proof of a
   feasible launch/capture mechanism. Old backups may predate this journal.
+- Measured object momentum/kinetic-energy changes use the initial inertial frame
+  and the first retained sample; they measure gravitational exchange, not an
+  actuator or capture budget.
 - Distance, speed and radial velocity use Sun-relative state. Specific orbital
   energy, eccentricity and periapsis use the instantaneous two-body Sun/object
   approximation; they are diagnostics of the N-body state, not predictions or a

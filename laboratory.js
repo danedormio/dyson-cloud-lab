@@ -32,7 +32,7 @@ class Laboratory {
     if(s.time_s===this.lastTime&&s.bodies.length===this.lastCount)return;
     this.lastTime=s.time_s;this.lastCount=s.bodies.length;
     const sample={time_s:s.time_s,energy_relative_drift:s.energy_relative_drift,objects:[]};
-    for(const b of s.bodies){if(b.role==='cloud'&&b.id!==selected)continue;let path=this.paths.get(b.id)||[];path.push([b.x_m,b.y_m,b.z_m]);if(path.length>500)path.shift();this.paths.set(b.id,path);const o=s.orbits?.[b.id];if(o)sample.objects.push({id:b.id,...o})}
+    for(const b of s.bodies){if(b.role==='cloud'&&b.id!==selected)continue;let path=this.paths.get(b.id)||[];path.push([b.x_m,b.y_m,b.z_m]);if(path.length>500)path.shift();this.paths.set(b.id,path);const o=s.orbits?.[b.id];if(o)sample.objects.push({id:b.id,...o,momentum_kg_ms:[b.vx_ms,b.vy_ms,b.vz_ms].map(v=>b.mass_kg*v),kinetic_energy_j:.5*b.mass_kg*(b.vx_ms*b.vx_ms+b.vy_ms*b.vy_ms+b.vz_ms*b.vz_ms)})}
     this.samples.push(sample);if(this.samples.length>500)this.samples.shift();
   }
   selectedTrail(){return (this.paths.get(selected)||[]).slice(-Number(document.querySelector('#trailLength').value));}
@@ -45,6 +45,8 @@ class Laboratory {
     const points=this.samples.flatMap(x=>{const v=x.objects.find(o=>o.id===selected);return v?[[x.time_s/86400,v.distance_au]]:[]});
     const minimum=points.length?Math.min(...points.map(p=>p[1])):o.distance_au;
     document.querySelector('#experimentReadout').textContent=`${b.name} · Sun-relative observables\nDistance ${o.distance_au.toFixed(4)} AU · Speed ${o.speed_kms.toFixed(4)} km/s · Radial ${o.radial_kms?.toFixed(4)} km/s\nTwo-body specific energy ${o.specific_energy_j_kg?.toExponential(4)} J/kg\nOsculating e=${o.eccentricity?.toFixed(5)} · Periapsis ${o.periapsis_au?.toFixed(5)} AU\n${o.specific_energy_j_kg<0?'Instantaneous two-body bound state — not proof of capture':'Instantaneous two-body unbound state'}\nSampled minimum ${minimum.toFixed(4)} AU · ${points.length} retained samples`;
+    const measured=this.samples.flatMap(s=>{const o=s.objects.find(o=>o.id===selected);return o?[o]:[]});
+    if(measured.length){const a=measured[0],z=measured.at(-1),delta=z.momentum_kg_ms.map((p,i)=>p-a.momentum_kg_ms[i]);document.querySelector('#experimentReadout').textContent+=`\nMeasured Δp since first retained sample: [${delta.map(v=>v.toExponential(4)).join(', ')}] kg m/s\nMeasured Δkinetic energy: ${(z.kinetic_energy_j-a.kinetic_energy_j).toExponential(4)} J\nInitial inertial frame; gravitational exchange, not a funded actuator or capture.`;}
     this.chart(points);
     const ref=this.reference?.points.at(-1);
     document.querySelector('#comparisonReadout').textContent=ref?`Pinned ${this.reference.name}: last sample t=${(ref.time_s/86400).toFixed(1)} d, r=${ref.distance_au.toFixed(4)} AU, v=${ref.speed_kms.toFixed(4)} km/s. Cyan=current, amber=pinned; compare at matched times. Reference stays in this tab until replaced.`:'Pin a measured run, then replay different parameters to compare.';
