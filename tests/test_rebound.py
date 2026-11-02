@@ -1,6 +1,59 @@
 import math
+import pytest
 
 from physics import CloudWorld, AU, DAY, EARTH_KG, SUN_KG
+
+
+@pytest.mark.parametrize('speed,impact,azimuth,elevation,mass', [
+    (10, .8, 0, 0, 1), (60, -1.5, 65, -35, 1e20), (25, 2, -120, 70, 100)])
+def test_launch_preview_is_isolated_and_matches_real_insertion(speed, impact, azimuth, elevation, mass):
+    world = CloudWorld(8)
+    world.step(7*DAY)
+    original = world.checkpoint()
+    parameters = dict(speed_kms=speed, impact_au=impact, azimuth_deg=azimuth,
+                      elevation_deg=elevation, mass_kg=mass, offset_degrees=42)
+    preview = world.preview_incoming(**parameters)
+    assert world.checkpoint() == original
+    assert preview['preview_only'] is True
+    assert len(preview['positions_m']) == 97
+    assert preview['start_time_s'] == 7*DAY
+    actual = world.add_incoming(**parameters)['bodies'][-1]
+    assert preview['initial_body'] == actual
+    forecast = world.trajectory(actual['id'])
+    for expected, observed in zip(preview['positions_m'], forecast['positions_m']):
+        assert math.dist(expected, observed)/AU < 1e-10
+
+
+def test_launch_preview_api_preserves_checkpoint_and_validates_inputs():
+    from fastapi.testclient import TestClient
+    from server import app
+    client = TestClient(app)
+    before = client.post('/api/reset', json={'cloud_count':4}).json()
+    forecast = client.post('/api/launch-preview', json={'speed_kms':40,'elevation_deg':25})
+    assert forecast.status_code == 200
+    assert forecast.json()['initial_body']['id'] == 6
+    after = client.get('/api/state').json()
+    assert before == after
+    for bad in ({'speed_kms':301}, {'elevation_deg':90}, {'mass_kg':0}, {'impact_au':26}, {'extra':1}):
+        assert client.post('/api/launch-preview', json=bad).status_code == 422
+    assert client.get('/api/state').json() == before
+    # Same weighted budget as selected-body forecasts, without weakened quotas.
+    app.state.sessions.max_requests = 24
+    assert client.post('/api/launch-preview', json={}).status_code == 429
+
+
+def test_launch_preview_overlap_and_full_world_leave_source_untouched():
+    world = CloudWorld(0)
+    world.add_incoming()
+    before = world.checkpoint()
+    with pytest.raises(ValueError, match='overlaps'):
+        world.preview_incoming()
+    assert world.checkpoint() == before
+    world = CloudWorld(200)
+    before = world.checkpoint()
+    with pytest.raises(ValueError):
+        world.preview_incoming()
+    assert world.checkpoint() == before
 
 def test_all_bodies_share_rebound_engine():
     world = CloudWorld(3)

@@ -144,6 +144,23 @@ class CloudWorld:
                 result["motion_frames"] = frames
             return result
 
+    def preview_incoming(self, **parameters):
+        """Preview insertion and gravity on a copy; never advance/inject into the world."""
+        with self.lock:
+            candidate = copy.copy(self)
+            candidate.lock = threading.RLock()
+            candidate.sim = self.sim.copy()
+            candidate.names = self.names.copy()
+            candidate.roles = self.roles.copy()
+            candidate.boundary_events = copy.deepcopy(self.boundary_events)
+        state = candidate.add_incoming(**parameters)
+        body = state['bodies'][-1]
+        result = candidate.trajectory(body['id'])
+        result['initial_body'] = body
+        result['parameters'] = parameters
+        result['preview_only'] = True
+        return result
+
     def trajectory(self, body_id):
         """Bounded no-intervention N-body forecast on an isolated REBOUND copy."""
         if not 0 <= body_id < len(self.sim.particles):

@@ -6,7 +6,7 @@ class ExplorerView {
     this.canvas=canvas; this.onSelect=onSelect; this.home(); this.selected=null;
     this.labels=document.querySelector('#sceneLabels');
     this.status=document.querySelector('#renderStatus');
-    this.gl=canvas.getContext('webgl', {antialias:true, preserveDrawingBuffer:true});
+    this.gl=canvas.getContext('webgl', {alpha:true,antialias:true, preserveDrawingBuffer:true});
     if(!this.gl){this.status.textContent='WebGL unavailable. Use the object list to inspect state; enable WebGL for 3D.';return;}
     try{this.init()}catch(error){this.status.textContent="3D graphics initialization failed. Object inspection remains available.";this.gl=null;return;}
     canvas.addEventListener('webglcontextlost', e=>{e.preventDefault();this.lost=true;this.status.textContent='3D graphics interrupted. Waiting for WebGL recovery; simulation state is preserved.'});
@@ -34,14 +34,19 @@ class ExplorerView {
         gl_Position=vec4(2.0*x/uAspect,2.0*up,1.002*depth-0.2002,depth);
         vNormal=aNormal;}`);
     const fs=shader(gl.FRAGMENT_SHADER,`precision mediump float;uniform vec3 uColor;uniform float uLit;varying vec3 vNormal;
-      void main(){float light=mix(1.0,0.32+0.68*max(0.0,dot(normalize(vNormal),normalize(vec3(-1.0,-1.0,2.0)))),uLit);gl_FragColor=vec4(uColor*light,1.0);}`);
+      void main(){vec3 n=normalize(vNormal);float light=mix(1.0,0.26+0.74*max(0.0,dot(n,normalize(vec3(-1.0,-1.0,2.0)))),uLit);gl_FragColor=vec4(uColor*light,1.0);}`);
     this.program=gl.createProgram();gl.attachShader(this.program,vs);gl.attachShader(this.program,fs);gl.linkProgram(this.program);if(!gl.getProgramParameter(this.program,gl.LINK_STATUS))throw Error('WebGL program link failed');
     this.uniform={};for(const key of ['Center','Radius','Az','El','Distance','Aspect','Color','Lit'])this.uniform[key]=gl.getUniformLocation(this.program,'u'+key);
     this.position=gl.getAttribLocation(this.program,'aPosition');this.normal=gl.getAttribLocation(this.program,'aNormal');
     const vertices=[],normals=[];const point=(lat,lon)=>[Math.cos(lat)*Math.cos(lon),Math.cos(lat)*Math.sin(lon),Math.sin(lat)];
     for(let i=0;i<12;i++)for(let j=0;j<20;j++){const a=point(-Math.PI/2+i*Math.PI/12,j*Math.PI/10),b=point(-Math.PI/2+(i+1)*Math.PI/12,j*Math.PI/10),c=point(-Math.PI/2+(i+1)*Math.PI/12,(j+1)*Math.PI/10),d=point(-Math.PI/2+i*Math.PI/12,(j+1)*Math.PI/10);for(const p of [a,b,c,a,c,d]){vertices.push(...p);normals.push(...p)}}
     this.sphere=this.buffer(vertices);this.normals=this.buffer(normals);this.sphereCount=vertices.length/3;this.lines=gl.createBuffer();
-    gl.enable(gl.DEPTH_TEST);gl.clearColor(.02,.045,.08,1);
+    const glowVS=shader(gl.VERTEX_SHADER,`attribute vec2 aPoint;uniform float uSize;void main(){gl_Position=vec4(aPoint,0.0,1.0);gl_PointSize=uSize;}`);
+    const glowFS=shader(gl.FRAGMENT_SHADER,`precision mediump float;uniform vec3 uColor;void main(){float r=length(gl_PointCoord-vec2(.5))*2.0;float a=pow(max(0.0,1.0-r),3.0)*.6;gl_FragColor=vec4(uColor*a,a);}`);
+    this.glowProgram=gl.createProgram();gl.attachShader(this.glowProgram,glowVS);gl.attachShader(this.glowProgram,glowFS);gl.linkProgram(this.glowProgram);
+    if(!gl.getProgramParameter(this.glowProgram,gl.LINK_STATUS))throw Error('Glow program link failed');
+    this.glowPoint=gl.getAttribLocation(this.glowProgram,'aPoint');this.glowSize=gl.getUniformLocation(this.glowProgram,'uSize');this.glowColor=gl.getUniformLocation(this.glowProgram,'uColor');this.glowBuffer=gl.createBuffer();
+    gl.enable(gl.DEPTH_TEST);gl.clearColor(0,0,0,0);
   }
   buffer(data){const gl=this.gl,b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);return b;}
   project(p,w,h){const x=p[0]*Math.cos(this.az)-p[1]*Math.sin(this.az),y=p[0]*Math.sin(this.az)+p[1]*Math.cos(this.az),up=y*Math.sin(this.el)+p[2]*Math.cos(this.el),depth=this.distance+y*Math.cos(this.el)-p[2]*Math.sin(this.el);return {x:w/2+x*h/depth,y:h/2-up*h/depth,depth};}
@@ -58,12 +63,12 @@ class ExplorerView {
     const origin=anchor?[anchor.x_m/149597870700,anchor.y_m/149597870700,anchor.z_m/149597870700]:[0,0,0];
     for(let i=0;i<3;i++)origin[i]+=this.pan[i];
     const relative=p=>p.map((v,i)=>v-origin[i]);
-    this.projected=[];const labels=[];
+    this.projected=[];const labels=[],halos=[];
     for(const b of snapshot.bodies){if((b.role==='cloud'&&!options.cloud)||(b.role==='tracked'&&options.tracked===false))continue;const p=relative([b.x_m/149597870700,b.y_m/149597870700,b.z_m/149597870700]),r=b.role==='star'?.15:b.role==='planet'?.085:b.role==='tracked'?.07:.045;
-      let color=b.id===this.selected?[1,.95,.5]:b.role==='star'?[1,.72,.26]:b.role==='planet'?[.2,.72,1]:b.role==='tracked'?[1,.42,.16]:[.48,.72,.86];
+      let color=b.id===this.selected?[1,.95,.5]:b.role==='star'?[1,.82,.45]:b.role==='planet'?[.32,.75,1]:b.role==='tracked'?[1,.58,.3]:[.50,.82,.87];
       if(options.colorMode==='speed'&&b.id!==this.selected&&b.role!=='star'){const t=Math.min(1,(snapshot.orbits?.[b.id]?.speed_kms||0)/50);color=[t,.8*(1-t),1-t*.7]}
       gl.uniform3fv(this.uniform.Center,p);gl.uniform1f(this.uniform.Radius,r);gl.uniform3fv(this.uniform.Color,color);gl.uniform1f(this.uniform.Lit,1);gl.drawArrays(gl.TRIANGLES,0,this.sphereCount);
-      const q={...this.project(p,w,h),id:b.id};q.radius=r*h/q.depth;this.projected.push(q);if((options.labels&&b.role!=='cloud')||b.id===this.selected){if(q.depth>.1&&q.x>=0&&q.x<w&&q.y>=0&&q.y<h){const label=document.createElement('span');label.textContent=b.name;label.style.left=(q.x+10)+'px';label.style.top=(q.y-10)+'px';labels.push(label)}}
+      const q={...this.project(p,w,h),id:b.id};q.radius=r*h/q.depth;this.projected.push(q);if(q.depth>.1&&(b.role==='star'||b.role==='tracked'||b.id===this.selected))halos.push({q,color,size:b.role==='star'?100:45});if((options.labels&&b.role!=='cloud')||b.id===this.selected){if(q.depth>.1&&q.x>=0&&q.x<w&&q.y>=0&&q.y<h){const label=document.createElement('span');label.textContent=b.name;label.style.left=(q.x+10)+'px';label.style.top=(q.y-10)+'px';labels.push(label)}}
     }
     this.labels.replaceChildren(...labels);
     const line=(points,color)=>{if(!points.length)return;gl.bindBuffer(gl.ARRAY_BUFFER,this.lines);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(points.flat()),gl.DYNAMIC_DRAW);gl.vertexAttribPointer(this.position,3,gl.FLOAT,false,0,0);gl.disableVertexAttribArray(this.normal);gl.vertexAttrib3f(this.normal,0,0,1);gl.uniform3f(this.uniform.Center,0,0,0);gl.uniform1f(this.uniform.Radius,1);gl.uniform1f(this.uniform.Lit,0);gl.uniform3fv(this.uniform.Color,color);gl.drawArrays(gl.LINE_STRIP,0,points.length)};
@@ -71,5 +76,21 @@ class ExplorerView {
     line(options.trail.map(p=>relative(p.slice(0,3).map(v=>v/149597870700))),[.15,.5,.68]);
     line((options.forecast||[]).map(p=>relative(p.map(v=>v/149597870700))),[1,.8,.25]);
     line((options.extraTrails||[]).map(p=>relative(p.map(v=>v/149597870700))),[1,.65,.25]);
+    if(options.launchPreview)line(options.launchPreview.positions_m.map(p=>relative(p.map(v=>v/149597870700))),[1,.78,.38]);
+    if(options.draft){const draft=options.draft,a=relative(draft.start),b=relative(draft.end);
+      // Separated segments are explicitly a geometric draft, not a sampled orbit.
+      for(let i=0;i<40;i+=2)line([a.map((v,k)=>v+(b[k]-v)*i/40),a.map((v,k)=>v+(b[k]-v)*(i+1)/40)],[.36,.74,.64]);
+      const end=relative(draft.velocityEnd);line([a,end],[.55,.96,.82]);
+      const dir=draft.direction,side=[-Math.sin(draft.parameters.azimuth_deg*Math.PI/180),Math.cos(draft.parameters.azimuth_deg*Math.PI/180),0];
+      const length=Math.min(.3,Math.hypot(...end.map((v,i)=>v-a[i]))*.3);
+      line([end.map((v,i)=>v-dir[i]*length+side[i]*length*.4),end,end.map((v,i)=>v-dir[i]*length-side[i]*length*.4)],[.55,.96,.82]);
+      // Start cross makes the exact insertion position visible at every speed.
+      line([a.map((v,i)=>v-side[i]*.09),a.map((v,i)=>v+side[i]*.09)],[.75,1,.9]);
+    }
+    // Decorative screen-space emission; it never changes positions or hit tests.
+    gl.useProgram(this.glowProgram);gl.disable(gl.DEPTH_TEST);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+    gl.bindBuffer(gl.ARRAY_BUFFER,this.glowBuffer);gl.enableVertexAttribArray(this.glowPoint);gl.vertexAttribPointer(this.glowPoint,2,gl.FLOAT,false,0,0);
+    for(const {q,color,size} of halos){gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([q.x/w*2-1,1-q.y/h*2]),gl.DYNAMIC_DRAW);gl.uniform1f(this.glowSize,size*d);gl.uniform3fv(this.glowColor,color);gl.drawArrays(gl.POINTS,0,1)}
+    gl.disable(gl.BLEND);gl.enable(gl.DEPTH_TEST);
   }
 }

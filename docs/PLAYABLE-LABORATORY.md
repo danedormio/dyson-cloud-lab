@@ -1,5 +1,47 @@
 # Playable gravity laboratory
 
+## Explore the orbital sandbox
+
+The Skunkworks interface is an asset-free, responsive 3D exhibit. **Play** (or
+Space with the universe focused) animates acknowledged IAS15 samples. Drag to
+orbit, shift-drag to pan, scroll/pinch to zoom, and click a physical body for its
+gold trajectory. **Focus** expands the universe; Escape brings the controls back.
+The X/Y/Z compass follows the camera. Background stars, emission halos and body
+sizes are decorative, not additional simulated bodies or physical luminosities.
+
+**Design an arrival** has paired sliders and exact numerical fields for speed,
+signed offset, offset angle, mass, azimuth and elevation. Sliders redraw the mint
+draft immediately, without a request or a numerical integration. The dashed
+line is initial aim geometry; the solid arrow represents 30 days of displacement
+at the specified initial velocity **without acceleration**. Neither is a gravity
+forecast. **Frame aim** fits the insertion region without changing the world.
+
+Pause and use **Trace gravity** for 97 actual IAS15 N-body samples on an isolated
+copy with the proposed body inserted. This includes the same massive-body back
+reaction as a real insertion. It never advances or inserts into the saved world.
+Amber is this forecast; mint is draft geometry. Changing parameters, resetting,
+launching or advancing invalidates the forecast. Trace is explicit rather than
+an expensive automatic request on every slider movement; the existing weighted
+session quota applies. Rejected, stale or failed previews leave the world intact.
+Forecasts remain bounded to at most two years (unbound arrivals: 180 days), with
+no future insertions or control. Sparse joined samples are not precision encounter
+or collision guarantees.
+
+**Launch arrival** commits the exact configured initial state. The dock stays
+available while exploring, including on mobile. Jump links locate launch, world,
+inspection and measurement controls. **Quick start** explains the interaction.
+World sliders apply with **New cloud**; existing worlds are never silently reset.
+The 1-hour to 20-year target rate range and exact **Advance selected interval**
+remain available. Throughput is backend-limited, and long advances commit bounded
+steps; the render and committed clocks remain separately visible.
+
+The existing presets, deterministic replay, measured plots, pinned comparison,
+exports, reference frames, visibility options and save/recovery operations remain.
+Save/checkpoint/private backup controls are grouped in **Save & recover your
+universe**. Open that disclosure before downloading or importing. Private recovery
+semantics and ownership are unchanged. The cloud still has the existing 200-body
+limit; this does not claim the original prototype's 900-agent visual density.
+
 This workbench extends the existing REBOUND explorer. It is a Newtonian point-mass
 experiment environment, not a demonstrated interstellar capture device. Synthetic
 Sun–Earth initial conditions are not measured ephemerides. The physical solver,

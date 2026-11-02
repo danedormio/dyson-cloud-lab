@@ -87,4 +87,6 @@ def test_live_skunkworks(chromium):
     page.evaluate('window.scrollTo(0,0)');page.screenshot(path=str(output/'live-skunkworks-desktop.png'),full_page=True)
     page.set_viewport_size({'width':390,'height':844});page.screenshot(path=str(output/'live-skunkworks-mobile.png'),full_page=True)
     print('LIVE_BROWSER_EVIDENCE',json.dumps({'expected_sha':expected,'build_text':page.locator('#buildVersion').inner_text(),'orbital_plane_extents':evidence['orbital_plane_extents'],'frames':len(evidence['frames']),'pixel_hashes':len({f['pixels'] for f in evidence['frames'] if f['pixels'] is not None}),'trajectory_pixels_differ':evidence['trajectory_pixels_differ'],'additional_objects':evidence['additional_objects'],'two_year_delta_s':evidence['two_year_delta_s']}))
+    from sandbox_observer import observe_sandbox
+    print('LIVE_SANDBOX_EVIDENCE',json.dumps(observe_sandbox(context.new_page(),URL,expected)))
     context.close()
