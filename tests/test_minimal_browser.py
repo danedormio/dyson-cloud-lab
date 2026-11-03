@@ -126,3 +126,39 @@ def test_playback_blends_acknowledged_samples_and_pause_is_exact(backend,chromiu
     assert page.evaluate('cloudView.renderTime===cloudView.world.time')
     assert page.evaluate('cloudView.renderBodies[1].x===cloudView.world.bodies[1].x')
     page.close()
+
+
+def test_3d_aim_orbit_inspection_recovery_and_mobile_launch(backend,chromium):
+    page=chromium.new_page(viewport={'width':1440,'height':960})
+    page.goto(backend.url+'/simple');page.wait_for_function('!!window.cloudView?.world')
+    requests=[];page.on('request',lambda r:requests.append(r.url) if '/api/simple' in r.url else None)
+    before=page.locator('canvas').screenshot()
+    page.locator('.aim3d summary').click()
+    for field,value in [('angle',133),('elevation',37),('roll',-71),('offset',.85),('speed',61)]:
+        page.locator('#'+field).evaluate('(el,v)=>{el.value=v;el.dispatchEvent(new Event("input"))}',value)
+    expected=page.evaluate('cloudView.aimGeometry()')
+    assert page.locator('canvas').screenshot()!=before
+    assert not requests and page.evaluate('cloudView.world.time')==0
+    page.click('#launch');page.wait_for_function('!!cloudView.world.packet')
+    packet=page.evaluate('cloudView.world.bodies.at(-1)')
+    for i,key in enumerate(['x','y','z']):assert abs(packet[key]-expected['position'][i])<1e-12
+    for i,key in enumerate(['vx','vy','vz']):assert abs(packet[key]-expected['velocity'][i])<1e-8
+    page.click('#packetinfo')
+    assert page.locator('#inspector').is_visible()
+    assert 'Closest approach:' in page.locator('#selectedstate').inner_text()
+    assert 'Eccentricity:' in page.locator('#selectedstate').inner_text()
+    page.reload();page.wait_for_function('!!cloudView?.world?.packet')
+    assert page.locator('#elevation').input_value()=='37'
+    assert page.locator('#roll').input_value()=='-71'
+    assert page.locator('#play').inner_text()=='Play'
+    page.click('#reset');page.wait_for_function('cloudView.world.packet===null')
+    page.set_viewport_size({'width':390,'height':900})
+    page.locator('.aim3d summary').click();page.locator('#elevation').evaluate('el=>{el.value=45;el.dispatchEvent(new Event("input"))}')
+    page.click('#launch');page.wait_for_function('!!cloudView.world.packet');page.wait_for_timeout(400)
+    assert page.evaluate('document.documentElement.scrollWidth')<=390
+    assert page.locator('canvas').bounding_box()['y']>=-10
+    page.click('#play');page.wait_for_function('cloudView.world.time>0');page.click('#play')
+    page.click('#home');page.click('#packetinfo')
+    Path('test-artifacts').mkdir(exist_ok=True)
+    page.screenshot(path='test-artifacts/complete-cloud-mobile.png',full_page=True)
+    page.close()

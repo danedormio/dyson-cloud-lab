@@ -122,3 +122,59 @@ def test_spatial_cloud_and_legacy_envelopes():
     assert restored.reference_radii==w.reference_radii
     del saved['reference_radii']
     assert CoordinatedCloud(saved).reference_radii==[(.8+.4*(k//16))*AU for k in range(N)]
+
+
+def test_launch_and_restore_keep_live_integrator_particles():
+    w=CoordinatedCloud();w.launch(angle=133,elevation=37,roll=-71,offset=.85,speed=61)
+    before=w.snapshot();w.advance(2)
+    assert before['bodies']!=w.snapshot()['bodies']
+    # Compare independently acquired C views: cached references must stay live.
+    for body,actual in zip(w.state()['bodies'],w.sim.particles):
+        assert body['x']==actual.x/AU and body['vz']==actual.vz
+    r=CoordinatedCloud(w.snapshot());r.advance(2);w.advance(2)
+    assert r.launch_settings==w.launch_settings
+    for a,b in zip(w.sim.particles,r.sim.particles):
+        assert math.dist((a.x,a.y,a.z),(b.x,b.y,b.z))<1e-7*AU
+
+
+def test_three_dimensional_launch_geometry_and_input_limits(tmp_path):
+    from fastapi.testclient import TestClient
+    from server import create_app
+    from sessions import SessionStore
+    c=TestClient(create_app(SessionStore(tmp_path/'aim.sqlite3')))
+    for angle,elevation,roll in [(133,37,-71),(-180,90,180),(180,-90,-180)]:
+        c.post('/api/simple/reset',json={})
+        s=c.post('/api/simple/launch',json=dict(angle=angle,elevation=elevation,roll=roll,speed=61,offset=.85)).json()
+        p=s['bodies'][-1];position=[p[k] for k in ['x','y','z']];velocity=[p[k]/61000 for k in ['vx','vy','vz']]
+        assert abs(norm(position)-math.hypot(2.2,.85))<1e-12
+        assert abs(dot_for_test(position,velocity)+2.2)<1e-12
+        assert abs(norm(velocity)-1)<1e-12
+        assert s['launch_settings']['elevation']==elevation
+    for field,value in [('angle',181),('elevation',91),('roll',181)]:
+        assert c.post('/api/simple/launch',json={field:value}).status_code==422
+
+
+def dot_for_test(a,b):
+    return math.fsum(x*y for x,y in zip(a,b))
+
+
+def test_display_links_distinguish_packet_and_neighbor_coupling():
+    w=CoordinatedCloud();w.launch();node=w.sim.particles[1];p=w.sim.particles[-1]
+    p.x,p.y,p.z=node.x+.1*AU,node.y,node.z
+    assert w.exchange(N+1,1,-1e12,DT,0)
+    j=min(range(2,N+1),key=lambda j:math.dist([node.x,node.y,node.z],
+        [w.sim.particles[j].x,w.sim.particles[j].y,w.sim.particles[j].z]))
+    assert w.exchange(1,j,1e12,DT,0)
+    assert w.state()['links']==[1]
+    assert w.state()['neighbor_links']==[[1,j]]
+    restored=CoordinatedCloud(w.snapshot())
+    assert restored.state()['links']==[1] and restored.state()['neighbor_links']==[[1,j]]
+
+
+def test_radial_bound_orbit_has_finite_apoapsis():
+    w=CoordinatedCloud();w.launch();sun=w.sim.particles[0];p=w.sim.particles[-1]
+    p.x,p.y,p.z=sun.x+AU,sun.y,sun.z
+    p.vx,p.vy,p.vz=sun.vx-1000,sun.vy,sun.vz
+    orbit=w.state()['packet']
+    assert orbit['specific_energy']<0 and orbit['eccentricity']==1
+    assert orbit['periapsis']==0 and .99<orbit['apoapsis']<1.01

@@ -166,3 +166,45 @@ force, controller interval or budget changes. A delayed-response browser test
 checks visible movement with unchanged computed time, never beyond the latest
 sample, and exact pause positions. This is part of the same owner-requested
 usability correction, not a new feature milestone.
+
+## Responsive experiment baseline (v1.5 interface)
+
+The interface keeps the small default experiment: start paused, set speed,
+impact offset and direction, launch, then Play. Optional 3D aiming opens tilt
+and offset rotation; all preview geometry matches the actual insertion state,
+not a gravity forecast. The original full source remains the UI reference.
+The packet-orbit readout opens closest/farthest approach, eccentricity and
+specific orbital energy, explicitly distinguishing binding from parking.
+Home view fits the cloud and packet; zoom and tilt cover both sides of the
+reference plane. Mobile controls flow below the scene with a persistent playback
+bar, rather than overlapping the status when advanced aiming opens.
+
+Launch settings are recorded with the scenario and recovered after reload.
+Old snapshots without this metadata still restore; no old trajectory is rewritten.
+The first controller still chooses the reference-plane 1.2 AU parking policy;
+new launch orientations are initial conditions, not a new guidance algorithm.
+
+Particle access was profiled before changing the solver: 7,946 indexed accesses
+per two-day advance triggered repeated import lookup in REBOUND's Python wrapper.
+Live C particle views are retained and explicitly rebound after launch/restore,
+when particle storage can move. Spatial nearest neighbors use Python's standard
+Euclidean distance function. The integrator, tolerance, control ticks, actuator
+limits and all energy/momentum accounting remain unchanged. A paired 120-day
+baseline comparison before launch-metadata additions matched complete snapshots
+exactly at every four-day checkpoint: 20.172 seconds before, 2.853 seconds after
+(7.07x in that local run). This is a measured local result, not a hosted speed
+claim. Actual hosted encounter latency must be measured before handoff.
+
+
+Visual coupling diagnostics distinguish recent accepted packet exchanges from
+station-to-station exchanges. Previously a station's neighbor activity could be
+rendered as a link to the packet even when no packet interaction occurred. The
+force and accounting code is unchanged; separate packet activity and neighbor
+pairs now drive those displays and survive recovery. This correction prevents
+visual activity from being mistaken for an actual long-range interaction.
+
+Apoapsis is computed from orbital energy and eccentricity in the backend,
+including a radial bound orbit with zero angular momentum. The alternative
+periapsis×(1+e)/(1−e) has a removable singularity at e=1 and would falsely show
+an unbounded farthest approach for that bound trajectory. A regression covers
+this case; it changes the diagnostic, not propagation or control.
