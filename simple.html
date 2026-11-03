@@ -1,207 +1,298 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cloud / First Light</title><style>
-:root{color-scheme:dark;--mint:#8ef5cf;--muted:#8e9aa9;--line:#ffffff17}*{box-sizing:border-box}body{margin:0;background:#060a12;color:#e5ebf2;font:14px system-ui,-apple-system,sans-serif}canvas{display:block;width:100%;height:100%;touch-action:none}main{position:relative;height:100dvh;min-height:650px;overflow:hidden}.scene{position:absolute;inset:0}.brand{position:absolute;top:32px;left:36px;pointer-events:none}.eyebrow{color:var(--mint);font-size:10px;letter-spacing:3px;text-transform:uppercase}h1{font-size:28px;font-weight:450;margin:8px 0}h1 span{color:#6b7d90;font-weight:300}.brand p{color:var(--muted);margin:0;font-size:12px}.clock{position:absolute;right:36px;top:36px;text-align:right;color:var(--muted);font-size:11px;letter-spacing:1px}.clock strong{display:block;color:#edf3fc;font:24px ui-monospace,monospace;letter-spacing:-1px;margin:6px 0}.panel{position:absolute;right:28px;top:140px;width:288px;padding:23px;background:linear-gradient(135deg,#111c2be8,#0a111ce8);border:1px solid var(--line);border-radius:18px;box-shadow:0 15px 60px #0005;backdrop-filter:blur(16px)}h2{font-weight:500;font-size:16px;margin:0 0 6px}.hint{font-size:12px;line-height:1.6;color:var(--muted);margin:0 0 20px}label{display:flex;justify-content:space-between;font-size:12px;margin-top:19px}output{font-family:ui-monospace,monospace;color:var(--mint)}input[type=range]{width:100%;accent-color:var(--mint);margin:10px 0 0;cursor:pointer}input:disabled{opacity:.35}.switch{border-top:1px solid var(--line);padding-top:17px;margin-top:19px;align-items:center}.switch input{accent-color:var(--mint);width:17px;height:17px}.primary{width:100%;border:0;background:var(--mint);color:#09241b;font-weight:650;margin-top:22px;padding:13px;border-radius:9px;cursor:pointer}.primary:disabled{opacity:.45;cursor:default}.status{position:absolute;left:36px;bottom:135px;width:min(460px,calc(100% - 380px));pointer-events:none}.status h2{font-size:23px;margin:8px 0}.status p{color:#a3b1c2;line-height:1.6;font-size:13px;margin:0}.dot{display:inline-block;width:6px;height:6px;background:var(--mint);border-radius:50%;margin-right:7px;box-shadow:0 0 14px var(--mint)}.bottom{position:absolute;bottom:25px;left:28px;right:28px;display:flex;align-items:center;gap:12px;padding:14px 17px;border:1px solid var(--line);border-radius:14px;background:#0d1522ed}.bottom button{background:#ffffff09;border:1px solid var(--line);color:#dbe7f5;border-radius:8px;padding:10px 17px;cursor:pointer}.bottom button:hover{background:#ffffff18}.measure{border-left:1px solid var(--line);padding-left:22px;margin-left:10px;min-width:120px}.measure small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:1px}.measure strong{display:block;font:16px ui-monospace,monospace;margin-top:6px;font-weight:400}.help{margin-left:auto;color:var(--muted);font-size:11px}.inspector{position:absolute;left:36px;top:195px;background:#101b2be8;border:1px solid var(--line);border-radius:10px;padding:16px;width:230px;display:none}.inspector h2{font-size:14px}.inspector p{color:var(--muted);font-size:12px;line-height:1.7}.inspector button{float:right;background:none;border:0;color:white;cursor:pointer}details{margin-top:17px;font-size:11px;color:var(--muted);line-height:1.65}summary{cursor:pointer;color:#b7c4d3}details p{margin:10px 0}.legend{position:absolute;left:36px;top:122px;font-size:10px;color:#8396ac;letter-spacing:.4px;pointer-events:none}.legend span{margin-right:14px}.error{color:#ffb5aa!important}.loading{opacity:.6}@media(max-width:760px){main{min-height:900px;height:100dvh}.brand{top:20px;left:20px}h1{font-size:23px}.clock{top:20px;right:20px}.clock strong{font-size:18px}.brand p{max-width:220px;font-size:10px}.brand .eyebrow{max-width:220px;font-size:8px;letter-spacing:1.5px}.clock{font-size:8px;max-width:110px}.clock span{letter-spacing:0;font-size:9px}.legend{top:112px;left:20px}.panel{top:auto;bottom:115px;right:16px;width:calc(100% - 32px);padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:0 18px}.panel>h2,.panel>.hint,.panel>.primary,.panel>details{grid-column:1/-1}.panel>.hint{margin-bottom:0}.panel label{margin-top:10px}.switch{border:0;padding:0;margin:8px 0 0}.primary{margin-top:12px}.panel details{margin-top:8px}.status{left:20px;bottom:480px;width:calc(100% - 40px)}.status h2{font-size:19px}.status p{font-size:12px}.bottom{left:16px;right:16px;bottom:16px;padding:10px;gap:7px;flex-wrap:wrap}.bottom button{padding:9px 12px}.measure{min-width:75px;padding-left:10px;margin-left:0}.measure strong{font-size:12px}.help{display:none}.inspector{left:20px;top:140px}.scene{bottom:350px}}
-.playback{margin:0;display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:11px}select{background:#182333;color:#e5ebf2;border:1px solid var(--line);border-radius:6px;padding:7px}.bottom{flex-wrap:wrap}.bottom .measure{min-width:95px}.help{font-size:10px}#home{position:absolute;left:36px;top:150px;z-index:1;color:#bdccdc;background:#101b2bdd;border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer}.packet-detail{min-width:120px!important;text-align:left}.packet-detail:disabled{opacity:.5;cursor:default}.aim3d{grid-column:1/-1}@media(max-width:760px){#home{left:20px;top:136px}.inspector{top:180px}}
-@media(max-width:760px){body{padding-bottom:150px}main{display:flex;flex-direction:column;height:auto;min-height:100dvh;overflow:visible}.scene{position:relative;inset:auto;bottom:auto;height:50vh;min-height:400px;order:0}.status{position:relative;left:auto;bottom:auto;width:auto;margin:10px 20px;order:1}.panel{position:relative;top:auto;bottom:auto;right:auto;width:auto;margin:16px;order:2;max-height:none!important;overflow:visible!important}.bottom{position:fixed;bottom:0;left:0;right:0;margin:8px;z-index:5;order:3}.inspector{z-index:4;top:180px}.brand,.clock,.legend{z-index:2}}
-@media(max-width:760px){.inspector{position:fixed;top:auto;bottom:155px;left:16px;width:calc(100% - 32px);max-height:calc(100dvh - 185px);overflow:auto;z-index:6;background:#101b2b;box-shadow:0 8px 45px #000b}}
-</style></head><body><main>
-<div class="scene"><button id="home" aria-label="Fit cloud and packet in view">Home view</button><canvas id="universe" aria-label="Interactive orbital cloud. Drag to orbit, scroll to zoom, click a station to inspect." tabindex="0"></canvas></div>
-<header class="brand"><div class="eyebrow">Dyson Cloud Laboratory · Minimal v1.5</div><h1>CLOUD <span>/ First Light</span></h1><p>One cloud. One arrival. A question you can explore.</p></header>
-<div class="clock">SIMULATED TIME<strong id="time">Day 0</strong><span id="connection">Connecting to physics…</span></div>
-<div class="legend"><span style="color:#8ef5cf">● stations</span><span style="color:#ffd698">● packet</span><span>3D cloud · 48 resolved stations</span></div>
-<section class="panel" aria-label="Launch controls" style="max-height:calc(100% - 260px);overflow:auto"><h2>Design an arrival</h2><p class="hint" id="launchhint">Adjust the dashed approach, then launch.<br>Launch places the packet while paused.<br>Press Play to watch. Reset pauses and clears it.</p>
-<div><label for="speed">Arrival speed <output id="speedValue">45 km/s</output></label><input id="speed" type="range" min="5" max="180" step="1" value="45"></div>
-<div><label for="offset">Trajectory offset <output id="offsetValue">0.65 AU</output></label><input id="offset" type="range" min="-1.5" max="1.5" step=".05" value=".65"></div>
-<div><label for="angle">Approach direction <output id="angleValue">0°</output></label><input id="angle" type="range" min="-180" max="180" step="1" value="0"></div>
-<details class="aim3d"><summary>3D aiming</summary><div><label for="elevation">Approach tilt <output id="elevationValue">0°</output></label><input id="elevation" type="range" min="-90" max="90" step="1" value="0"></div><div><label for="roll">Offset rotation <output id="rollValue">0°</output></label><input id="roll" type="range" min="-180" max="180" step="1" value="0"></div><p>Tilt aims above or below the reference plane. Offset rotation chooses which side of that incoming line passes the star.</p></details>
-<label class="switch" for="coord">Cloud coordination <input id="coord" type="checkbox" checked></label>
-<button class="primary" id="launch" disabled>Launch packet</button>
-<details><summary>What is being modeled?</summary><p>48 massive stations orbit a moving Sun. REBOUND IAS15 computes mutual Newtonian gravity. Each station represents 10¹⁸ kg; total allocation is 0.000008 Earth masses, within the recorded asteroid-belt budget. The stations fill a 3D shell with independently oriented orbital planes; this is a sparse resolved sample, not the full Solar System.</p><p>The packet is 10¹² kg. Ideal bidirectional actuators exchange equal and opposite central impulses within 0.65 AU, bounded to 2×10⁹ N and 2×10¹⁴ W per link. These are experimental capability assumptions, not demonstrated hardware. Electrical stores and heat account for 90% regenerative efficiency. There is no free refueling.</p><p>A simple budget screen chooses attempt or stand aside. Decisions update every two simulated hours; gravity remains adaptive. Plans and observations travel at light speed. Local proportional control aims toward circular motion near 1.2 AU; nearest neighbors damp relative motion. Mint links show packet exchanges; faint blue links show neighbor exchanges. The first parking policy targets the reference plane near 1.2 AU. No orbit is clamped. “Bound now” is a diagnostic, not proof of durable capture. Stand aside disables coupling; point masses have no collision bodies, so avoidance safety is not modeled.</p><p id="accounting">Accounting will appear here.</p><p>Drag the scene to tilt it; scroll to zoom. Click a station for its energy and activity. Motion blends already-computed samples; it never predicts future physics. The clock follows the displayed sample; diagnostics describe the latest computed state. Playback rate is a target, limited by service throughput. Start paused, aim, launch, then press Play. Reset also pauses.</p></details>
-</section>
-<aside class="inspector" id="inspector"><button id="close" aria-label="Close station inspector">×</button><h2 id="selected">Station</h2><p id="selectedstate"></p></aside>
-<section class="status" aria-live="polite"><div class="eyebrow"><span class="dot"></span>Cloud decision</div><h2 id="decision">Preparing the cloud</h2><p id="reason">Loading the first scene.</p></section>
-<footer class="bottom"><button id="play" disabled>Play</button><button id="reset" disabled>↺ Reset</button><label class="playback" for="rate">Playback <select id="rate"><option value="0.25">¼ day / sec</option><option value="1" selected>1 day / sec</option><option value="4">4 days / sec</option><option value="16">16 days / sec</option></select></label><div class="measure"><small>Packet speed</small><strong id="pspeed">—</strong></div><button class="measure packet-detail" id="packetinfo" disabled title="Inspect the packet orbit"><small>Packet orbit</small><strong id="pstate">Not launched</strong></button><div class="measure"><small>Energy stored</small><strong id="energy">50.0%</strong></div><div class="help">DRAG TO ORBIT · SCROLL TO ZOOM<br><span style="line-height:2">CLICK AN OBJECT TO INSPECT</span></div></footer>
-</main><script src="/recovery.js"></script><script>
-'use strict';
-const $=id=>document.getElementById(id),canvas=$('universe'),ctx=canvas.getContext('2d');
-let world=null,playing=false,busy=false,launched=false,yaw=-.2,tilt=.75,zoom=1,selected=null,points=[],trail=[],lastTime=-1,requestEpoch=0,pending=false,connecting=false,reconnectNeeded=true,backupAvailable=true;
-let displayFrom=null,displayStarted=0,displayDuration=250,renderBodies=[],renderTime=0,lastStepMs=250;
-const backup = RecoveryBackup.create('dyson-first-light-v13-backups');
-let stars=Array.from({length:420},(_,i)=>({x:((i*16807%2147483647)%997)/997,y:((i*48271%2147483647)%991)/991,r:i%7===0?1:.45}));
-const controls=['speed','offset','angle','elevation','roll','coord'];
-const initialArrivalHint=$('launchhint').innerHTML;
-function values(){return {speed:+$('speed').value,offset:+$('offset').value,angle:+$('angle').value,elevation:+$('elevation').value,roll:+$('roll').value,enabled:$('coord').checked}}
-function labels(){$('speedValue').textContent=$('speed').value+' km/s';$('offsetValue').textContent=(+$('offset').value).toFixed(2)+' AU';$('angleValue').textContent=$('angle').value+'°';$('elevationValue').textContent=$('elevation').value+'°';$('rollValue').textContent=$('roll').value+'°'}
-controls.forEach(id=>$(id).addEventListener('input',labels));
-async function request(url, payload, method = 'POST') {
-  const abort = new AbortController();
-  const timeout = setTimeout(() => abort.abort(), 30000);
-  try {
-    const response = await fetch(url, {method, signal:abort.signal,
-      ...(method==='GET' ? {} : {headers:{'Content-Type':'application/json'},body:JSON.stringify(payload || {})})});
-    let result;
-    try { result=await response.json(); }
-    catch {
-      const problem=new Error('The physics service is not ready yet.');
-      problem.status=response.status;
-      throw problem;
-    }
-    if (!response.ok) {
-      const problem = new Error(typeof result.detail==='string' ? result.detail : 'The physics service could not complete the request');
-      problem.status=response.status;
-      throw problem;
-    }
-    return result;
-  } finally { clearTimeout(timeout); }
-}
-async function acceptBackup(result) {
-  if (backupAvailable) {
-    try { await backup.accept(result.recovery); }
-    catch { backupAvailable=false; } // Keep the simulation usable if browser storage fails.
-  }
-  return result;
-}
-async function api(action,payload) {
-  return acceptBackup(await request('/api/simple'+(action?'/'+action:''),
-    payload || values(), action?'POST':'GET'));
-}
-function buttons() {
-  controls.forEach(id => $(id).disabled=launched || pending || connecting);
-  $('packetinfo').disabled=!world?.packet;
-  $('launch').disabled=!world || launched || pending || connecting || reconnectNeeded;
-  $('play').disabled=connecting || pending || (!reconnectNeeded && !!world?.halted);
-  $('reset').disabled=connecting || pending;
-  $('play').textContent=connecting?'Connecting…':reconnectNeeded?'Retry connection':world?.halted?'Paused near star':playing?'Pause':'Play';
-  $('reset').textContent=(!world || reconnectNeeded)?'Start fresh':'Reset';
-}
-function setWorld(w){
-  if(playing && world && w.time>world.time && w.bodies.length===world.bodies.length){
-    displayFrom={bodies:renderBodies.length?renderBodies:world.bodies,time:renderTime};
-    displayStarted=performance.now();displayDuration=Math.max(250,lastStepMs);
-  } else if(!playing || !world || w.time<world.time || w.bodies.length!==world.bodies.length){displayFrom=null;}
-  world=w;
-  if(w.packet&&w.launch_settings){for(const id of controls){if(id==='coord')$(id).checked=w.enabled;else $(id).value=w.launch_settings[id]??0;}labels();}
-  $('launchhint').innerHTML=w.packet&&!w.launch_settings?'Earlier saved run: launch controls were not recorded with this scene. Reset to design a new arrival.':initialArrivalHint;
-  launched=!!w.packet;if(w.halted){playing=false;$('play').textContent='Paused near star';}$('time').textContent='Day '+w.time.toFixed(0);$('connection').textContent=(playing?'Running':'Paused')+' · REBOUND'+(backupAvailable?'':' · temporary session');$('decision').textContent=w.decision;$('reason').textContent=w.reason;$('pspeed').textContent=w.packet?w.packet.speed.toFixed(1)+' km/s':'—';$('pstate').textContent=w.packet?(w.packet.specific_energy<0?'Bound orbit':'Unbound'):'Not launched';$('pstate').title=w.packet?.status||'';$('energy').textContent=(100*w.stored_j/(48*2e22)).toFixed(1)+'%';$('accounting').textContent='Heat retained: '+w.heat_j.toExponential(2)+' J. Mechanical work: '+w.work_j.toExponential(2)+' J. Integration residual / reference packet energy scale: '+w.energy_residual_packet_scale.toExponential(2)+'.';if(w.packet&&w.time!==lastTime){const p=w.bodies.at(-1);trail.push([p.x,p.y,p.z]);if(trail.length>1500)trail.shift()}lastTime=w.time;inspect();buttons();}
-function error(problem) {
-  playing=false;
-  reconnectNeeded=true;
-  $('connection').textContent='Connection interrupted';
-  $('decision').textContent='Connection interrupted';
-  const message=problem.name==='AbortError'?'The physics service took too long to respond.':problem.message;
-  $('reason').textContent=message+' Retry connection resumes the saved scene. Start fresh keeps a copy of its backup and opens a new cloud.';
-  $('reason').classList.add('error');
-  buttons();
-}
-async function act(action, payload) {
-  if(busy)return;
-  busy=true;
-  $('connection').textContent=(action==='step'?'Computing physics…':'Updating cloud…')+(backupAvailable?'':' · temporary session');
-  try {
-    const started=performance.now();
-    const state=await api(action,payload);
-    if(action==='step')lastStepMs=performance.now()-started;
-    if(action==='reset'){trail=[];selected=null;$('inspector').style.display='none';}
-    setWorld(state);
-    $('reason').classList.remove('error');
-  } catch(problem) {error(problem);}
-  finally {busy=false;buttons();}
-}
-async function userAction(action) {
-  if(pending || connecting || reconnectNeeded)return;
-  const payload=values();
-  playing=false;
-  pending=true;buttons();
-  try {while(busy)await new Promise(r=>setTimeout(r,20));await act(action,payload);if(innerWidth<=760&&(action==='launch'||action==='reset'))canvas.scrollIntoView({behavior:'smooth',block:'start'});}
-  finally {pending=false;buttons();}
-}
-async function connect(fresh=false) {
-  if(connecting || pending)return;
-  connecting=true;playing=false;buttons();
-  $('connection').textContent=fresh?'Starting a fresh cloud…':'Connecting to physics…';
-  try {
-    while(busy)await new Promise(r=>setTimeout(r,20));
-    let skipBackup=false;
-    if(fresh) {
-      // An explicit fresh start archives this view's backup; old workbench data is untouched.
-      try {await backup.archiveAndReset();backupAvailable=true;}
-      catch {backupAvailable=false;skipBackup=true;}
-      await request('/api/simple/session',{},'DELETE');
-      trail=[];selected=null;$('inspector').style.display='none';
-    }
-    const state=await bootstrap(skipBackup);
-    reconnectNeeded=false;playing=false;
-    setWorld(state);
-    $('reason').classList.remove('error');
-  } catch(problem) {error(problem);}
-  finally {connecting=false;buttons();}
-}
-$('launch').onclick=()=>userAction('launch');
-$('reset').onclick=()=>!world || reconnectNeeded ? connect(true) : userAction('reset');
-$('play').onclick=()=>{
-  if(!world || reconnectNeeded){connect();return;}
-  playing=!playing;setWorld(world);buttons();
-};
-$('packetinfo').onclick=()=>{if(world?.packet){selected=world.bodies.length-1;inspect();}};
-$('home').onclick=()=>{yaw=-.2;tilt=.75;zoom=Math.min(1,2.2/Math.max(2.2,...(world?.bodies||[]).map(b=>Math.hypot(b.x,b.y,b.z))));};
-$('close').onclick=()=>{selected=null;$('inspector').style.display='none'};
-function inspect(){
-  if(selected===null||!world)return;const b=world.bodies[selected];if(!b)return;
-  $('inspector').style.display='block';$('selected').textContent=selected===0?'Sun':selected>48?'Packet orbit':'Station '+selected;
-  let text='Mass: '+b.mass.toExponential(2)+' kg<br>Speed: '+(Math.hypot(b.vx,b.vy,b.vz||0)/1000).toFixed(2)+' km/s';
-  if(b.energy!==null)text+='<br>Electrical store: '+(100*b.energy).toFixed(2)+'%<br>Heat / capacity: '+(100*b.heat).toFixed(3)+'%<br>Actuation: '+(100*b.active).toFixed(0)+'%';
-  if(selected>48&&world.packet){const p=world.packet;
-    const apo=p.apoapsis??Infinity;
-    text+='<br><br>'+p.status+'<br>Closest approach: '+p.periapsis.toFixed(3)+' AU<br>Farthest approach: '+(Number.isFinite(apo)?apo.toFixed(3)+' AU':'unbounded')+'<br>Eccentricity: '+p.eccentricity.toFixed(3)+'<br>Orbital energy: '+p.specific_energy.toExponential(3)+' J/kg<br><br>A bound orbit can still be very elongated. Binding alone does not establish a stable parking orbit.';
-  }
-  $('selectedstate').innerHTML=text;
-}
-let W=0,H=0,scale=100;function project(x,y,z=0){const X=x*Math.cos(yaw)-y*Math.sin(yaw),Y=x*Math.sin(yaw)+y*Math.cos(yaw);return [W*(W>760?.41:.5)+X*scale,H*.48+(Y*Math.cos(tilt)-z*Math.sin(tilt))*scale]}
-function path(coords,color,width=1,dash=[]){ctx.beginPath();coords.forEach((p,i)=>{let q=project(...p);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);ctx.stroke();ctx.setLineDash([])}
-function aimGeometry(){
- const v=values(),a=v.angle*Math.PI/180,e=v.elevation*Math.PI/180,q=v.roll*Math.PI/180;
- const d=[Math.cos(e)*Math.cos(a),Math.cos(e)*Math.sin(a),Math.sin(e)],side=[-Math.sin(a),Math.cos(a),0],up=[-Math.sin(e)*Math.cos(a),-Math.sin(e)*Math.sin(a),Math.cos(e)];
- const offset=side.map((x,i)=>v.offset*(Math.cos(q)*x+Math.sin(q)*up[i]));
- return {position:d.map((x,i)=>-2.2*x+offset[i]),velocity:d.map(x=>v.speed*1000*x),line:[-2.2,2.2].map(t=>d.map((x,i)=>t*x+offset[i]))};
-}
-function draw(){
-// Interpolate only between acknowledged samples. Never predict future physics.
-const mix=displayFrom&&playing?Math.min(1,(performance.now()-displayStarted)/displayDuration):1;
-renderTime=world?(displayFrom&&playing?displayFrom.time+(world.time-displayFrom.time)*mix:world.time):0;
-renderBodies=world?world.bodies.map((b,i)=>{const a=displayFrom?.bodies[i];return a&&mix<1?{...b,x:a.x+(b.x-a.x)*mix,y:a.y+(b.y-a.y)*mix,z:a.z+(b.z-a.z)*mix}:b}):[];
-if(world)$('time').textContent='Day '+renderTime.toFixed(1);
-const box=canvas.getBoundingClientRect(),dpr=Math.min(devicePixelRatio,2);if(W!==box.width||H!==box.height){W=box.width;H=box.height;canvas.width=W*dpr;canvas.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0)}scale=Math.min(W*(W>760?.19:.22),H*.28)*zoom;ctx.fillStyle='#060a12';ctx.fillRect(0,0,W,H);let neb=ctx.createRadialGradient(W*.45,H*.45,0,W*.45,H*.45,W*.65);neb.addColorStop(0,'#11253999');neb.addColorStop(1,'#060a1200');ctx.fillStyle=neb;ctx.fillRect(0,0,W,H);for(let s of stars){ctx.fillStyle=s.r===1?'#c2d9ef77':'#9bbbd044';ctx.beginPath();ctx.arc(s.x*W,s.y*H,s.r,0,7);ctx.fill()}
-// Actual 3D body positions define the cloud; no rigid ring outlines.
-
-if(!launched){const g=aimGeometry();path(g.line,'#f5d09777',1,[6,7]);let q=project(...g.position);ctx.fillStyle='#ffd698';ctx.beginPath();ctx.arc(...q,4,0,7);ctx.fill()}
-if(trail.length>1){const p=renderBodies.at(-1);path([...trail.slice(0,-1),[p.x,p.y,p.z]],'#ffd698bb',1.8);}
-if(world){const packet=world.packet?renderBodies.at(-1):null;for(let b of renderBodies){if(world.links.includes(b.id)&&packet){path([[b.x,b.y,b.z],[packet.x,packet.y,packet.z]],'#8ef5cf'+Math.round(25+70*b.active).toString(16).padStart(2,'0'),1)}}for(const [i,j] of world.neighbor_links||[]){const a=renderBodies[i],b=renderBodies[j];if(a&&b)path([[a.x,a.y,a.z],[b.x,b.y,b.z]],'#8caec52b',.7);}points=[];for(let b of renderBodies){const q=project(b.x,b.y,b.z);points.push(q);const isSun=b.id===0,isPacket=b.id>48,color=isSun?'#ffe1a0':isPacket?'#ffd698':b.active>.01?'#a4ffe0':'#8caec5';let radius=isSun?7:isPacket?4:b.id===selected?4:2.4;let glow=ctx.createRadialGradient(...q,0,...q,radius*5);glow.addColorStop(0,color+(isSun?'aa':'55'));glow.addColorStop(1,color+'00');ctx.fillStyle=glow;ctx.beginPath();ctx.arc(...q,radius*5,0,7);ctx.fill();ctx.fillStyle=color;ctx.beginPath();ctx.arc(...q,radius,0,7);ctx.fill();if(b.id===selected){ctx.strokeStyle='#ffffff88';ctx.beginPath();ctx.arc(...q,9,0,7);ctx.stroke()}}}
-requestAnimationFrame(draw)}
-let drag=null,moved=0;canvas.onpointerdown=e=>{drag=[e.clientX,e.clientY];moved=0;canvas.setPointerCapture(e.pointerId)};canvas.onpointermove=e=>{if(!drag)return;let dx=e.clientX-drag[0],dy=e.clientY-drag[1];moved+=Math.abs(dx)+Math.abs(dy);yaw+=dx*.005;tilt=Math.max(-Math.PI/2,Math.min(Math.PI/2,tilt+dy*.005));drag=[e.clientX,e.clientY]};canvas.onpointerup=e=>{if(moved<5){let r=canvas.getBoundingClientRect(),best=14;selected=null;points.forEach((p,i)=>{let d=Math.hypot(p[0]-(e.clientX-r.left),p[1]-(e.clientY-r.top));if(d<best){best=d;selected=i}});if(selected===null)$('inspector').style.display='none';else inspect()}drag=null};canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.025,Math.min(8,zoom*Math.exp(-e.deltaY*.001)))},{passive:false});canvas.onkeydown=e=>{if(e.code==='Space'){e.preventDefault();$('play').click()}};
-async function loop(){
-  const rate=+$('rate').value,days=Math.max(1/12,Math.min(2,rate*.25));
-  const started=performance.now();
-  if(playing && !busy && !pending && !connecting && !reconnectNeeded && world)await act('step',{...values(),days});
-  setTimeout(loop,Math.max(30,days/rate*1000-(performance.now()-started)));
-}
-async function bootstrap(skipBackup=false){
-  let saved=null;
-  if(skipBackup){backupAvailable=false;}
-  else {
-    try {saved=await backup.refresh();backupAvailable=true;}
-    catch {backupAvailable=false;}
-  }
-  let state;
-  try {
-    state=await request('/api/simple/session',{
-      recovery_token:saved?.credential || null,has_backup:!!saved?.capsule});
-  } catch(problem) {
-    if((problem.status===401 || problem.status===403) && saved?.capsule) {
-      state=await request('/api/simple/recover',{credential:saved.credential,capsule:saved.capsule});
-    } else {throw problem;}
-  }
-  return acceptBackup(state);
-}
-labels();draw();loop();connect();
-window.cloudView={get world(){return world},get trail(){return trail},aimGeometry,get renderTime(){return renderTime},get renderBodies(){return renderBodies},project};
-</script></body></html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>Dyson Cloud Laboratory</title>
+    <link rel="stylesheet" href="/lab-assets/cloud-lab.css?v=2" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <div class="eyebrow">DYSON CLOUD LABORATORY</div>
+        <h1>Orbital cloud</h1>
+      </div>
+      <div class="topright">
+        <span id="engineStatus">Starting local physics…</span
+        ><strong id="clock">Day 0</strong>
+      </div>
+    </header>
+    <main>
+      <section class="view" id="view">
+        <canvas
+          id="space"
+          tabindex="0"
+          aria-label="Three-dimensional orbital cloud. Drag to orbit the camera, scroll to zoom, click an object to inspect."
+        ></canvas>
+        <div class="hud">
+          <span class="badge" id="runState">Paused</span
+          ><span id="population">Preparing 900 elements</span>
+          <p id="decision">Preparing the cloud</p>
+          <p class="muted" id="detail">
+            REBOUND runs locally. Earlier server sessions do not block this
+            scene.
+          </p>
+          <div class="legend">
+            <span class="mint">● cloud</span><span class="amber">● packets</span
+            ><span>◌ reference guides</span>
+          </div>
+        </div>
+        <div id="notice" role="status" hidden></div>
+        <aside class="inspect" id="inspector" hidden>
+          <button id="closeInspect" class="close" aria-label="Close inspector">
+            ×
+          </button>
+          <h2 id="inspectTitle">Object</h2>
+          <div id="inspectBody"></div>
+        </aside>
+        <div class="viewhint">
+          DRAG TO ORBIT · SCROLL TO ZOOM · CLICK TO INSPECT
+        </div>
+        <div class="toolbar">
+          <button id="play" disabled>▶ Play</button
+          ><button id="launch" class="primary" disabled>＋ Launch packet</button
+          ><button id="reset" disabled>Reset cloud</button
+          ><button id="home">Home view</button
+          ><label class="rate"
+            >Playback target<select id="rate">
+              <option value="0.0416666667">1 hour / s</option>
+              <option value="1">1 day / s</option>
+              <option value="7">1 week / s</option>
+              <option value="182.625">½ year / s</option>
+              <option value="365.25" selected>1 year / s</option>
+              <option value="730.5">2 years / s</option>
+              <option value="1826.25">5 years / s</option>
+              <option value="3652.5">10 years / s</option>
+              <option value="7305">20 years / s</option>
+            </select></label
+          >
+          <div class="throughput">
+            <small>ACTUAL RATE</small><span id="actualRate">Paused</span>
+          </div>
+        </div>
+      </section>
+      <aside class="sidebar">
+        <section>
+          <h2>Design an arrival</h2>
+          <p class="hint">
+            Launch into the current cloud at any time. Playback keeps its state.
+            Every packet remains in the same physical world. Successive arrivals
+            start 0.02 AU farther back to avoid coincident point masses.
+          </p>
+          <div class="field">
+            <label for="speed"
+              >Arrival speed
+              <input
+                id="speedNumber"
+                type="number"
+                min="5"
+                max="3000"
+                step="1"
+                value="45"
+                aria-label="Arrival speed in km/s"
+              /><span>km/s</span></label
+            ><input
+              id="speed"
+              type="range"
+              min="0"
+              max="1000"
+              value="344"
+              aria-label="Arrival speed slider"
+            />
+          </div>
+          <div class="field">
+            <label for="offset"
+              >Impact offset <output id="offsetValue">5 AU</output></label
+            ><input
+              id="offset"
+              type="range"
+              min="-30"
+              max="30"
+              step=".1"
+              value="5"
+            />
+          </div>
+          <div class="field">
+            <label for="az"
+              >Approach direction <output id="azValue">0°</output></label
+            ><input
+              id="az"
+              type="range"
+              min="-180"
+              max="180"
+              step="1"
+              value="0"
+            />
+          </div>
+          <details>
+            <summary>3D aiming</summary>
+            <div class="field">
+              <label for="el"
+                >Approach tilt <output id="elValue">0°</output></label
+              ><input
+                id="el"
+                type="range"
+                min="-90"
+                max="90"
+                step="1"
+                value="0"
+              />
+            </div>
+            <div class="field">
+              <label for="roll"
+                >Offset rotation <output id="rollValue">0°</output></label
+              ><input
+                id="roll"
+                type="range"
+                min="-180"
+                max="180"
+                step="1"
+                value="0"
+              />
+            </div>
+          </details>
+          <label class="check"
+            ><input id="coord" type="checkbox" checked /> Coordinated
+            coupling</label
+          >
+        </section>
+        <section>
+          <h2>Cloud &amp; reference guides</h2>
+          <div class="cloud-fields">
+            <label
+              >Elements
+              <input
+                id="count"
+                type="number"
+                min="240"
+                max="1800"
+                step="60"
+                value="900" /></label
+            ><label
+              >Inner radius · AU<input
+                id="inner"
+                type="number"
+                min=".3"
+                max="59"
+                step=".1"
+                value="1" /></label
+            ><label
+              >Outer radius · AU<input
+                id="outer"
+                type="number"
+                min=".4"
+                max="60"
+                step="1"
+                value="30"
+            /></label>
+          </div>
+          <p class="hint">
+            Reset cloud applies these settings. The fixed material budget is
+            shared by the resolved elements.
+          </p>
+          <div class="checks">
+            <label
+              ><input id="plane" type="checkbox" checked /> Ecliptic
+              plane</label
+            ><label
+              ><input id="bounds" type="checkbox" checked /> Inner / outer
+              spheres</label
+            ><label
+              ><input id="earth" type="checkbox" checked /> Earth · 1 AU
+              reference</label
+            ><label
+              ><input id="trails" type="checkbox" checked /> Packet
+              trails</label
+            ><label
+              ><input id="cloudTrails" type="checkbox" /> Cloud trails</label
+            ><label><input id="labels" type="checkbox" /> Object labels</label>
+          </div>
+          <p class="hint">
+            The Earth marker and boundaries are visual references. They exert no
+            forces.
+          </p>
+        </section>
+        <section>
+          <h2>Packets <span class="muted" id="packetCount">0 / 32</span></h2>
+          <div id="packets" class="packets">
+            <p class="hint">
+              No packets launched. Use ＋ Launch packet below the view.
+            </p>
+          </div>
+        </section>
+        <section>
+          <h2>Resources &amp; accounting</h2>
+          <div class="ledger">
+            <span>Electrical stores</span><strong id="stored">50.0%</strong
+            ><span>Heat retained</span><strong id="heat">0 J</strong
+            ><span>Mechanical work</span><strong id="work">0 J</strong
+            ><span>Numerical balance</span><strong id="balance">—</strong>
+          </div>
+          <div class="save-status" id="saveStatus">
+            Scene starts paused · local browser storage
+          </div>
+          <div class="file-actions">
+            <button id="exportScene" disabled>Save scene file</button
+            ><label class="file-button"
+              >Load scene<input
+                id="importScene"
+                type="file"
+                accept=".json,application/json"
+                hidden
+            /></label>
+          </div>
+          <button id="downloadPrevious" hidden>
+            Download retained previous scene
+          </button>
+        </section>
+        <details class="model">
+          <summary>Physics, assumptions &amp; source</summary>
+          <p>
+            900 resolved masses by default. REBOUND 4.6.0 computes full mutual
+            Newtonian gravity, including the moving Sun. WHFast uses longer
+            coasting steps and finer encounter steps. A numerical energy guard
+            retries smaller steps; IAS15 is the validation reference.
+          </p>
+          <p>
+            Every central coupling impulse has an equal and opposite
+            counterpart. Electrical stores and retained heat balance exact
+            kinetic work. Force, power, thermal and orbital disturbance limits
+            can veto actions. The local rule predicts from light-delayed packet
+            observations; a simple global budget screen attempts capture,
+            assists, or declines. These are experimental control rules, not
+            optimal coordination.
+          </p>
+          <p>
+            9×10²⁰ kg is allocated within the provisional asteroid-belt budget.
+            Changing element count shares that fixed allocation. Coupling reach
+            is an idealized 2 AU. Hardware, field propagation, collisions,
+            cooling and relativistic transport are not modeled. Launch speed is
+            limited to 3000 km/s (about 0.01c); higher speeds need a
+            relativistic model. A bound orbit is not proof of stable parking.
+          </p>
+          <p>
+            Guide markers are not simulated planets. Display radii are enlarged.
+            Trails contain computed history; interpolation only joins
+            already-computed samples. Playback targets can exceed hardware
+            throughput; actual rate is shown.
+          </p>
+          <p>
+            New scenes are saved locally, without a server session. Older server
+            backups remain untouched.
+          </p>
+          <p>
+            <a href="/lab-assets/engine/corresponding-source.tar.gz"
+              >Physics executable: full source and GPL notice</a
+            >
+            · <a href="https://github.com/hannorein/rebound">REBOUND</a> ·
+            <a href="/simple-legacy" target="_blank" rel="noopener"
+              >Earlier server workbench</a
+            >
+          </p>
+        </details>
+      </aside>
+    </main>
+    <script src="/lab-assets/cloud-lab.js?v=2"></script>
+  </body>
+</html>
