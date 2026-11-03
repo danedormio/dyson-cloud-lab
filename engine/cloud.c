@@ -38,6 +38,8 @@ static double initial_e,boundary_e,work_total,impulse_total,initial_p[3],boundar
 static double output[OUTPUT_SIZE],snapshot[SNAP_SIZE];
 static int links[MAX_N],neighbors[MAX_N],retry_count;
 static uint32_t random_state;
+static double resolution=1.;
+void cloud_resolution(double factor){if(factor>=.125&&factor<=1)resolution=factor;}
 
 static double now_ms(void){
 #ifdef __EMSCRIPTEN__
@@ -54,7 +56,13 @@ static double clamp(double x,double lo,double hi){return fmax(lo,fmin(hi,x));}
 static void position(struct reb_particle p,double*v){v[0]=p.x;v[1]=p.y;v[2]=p.z;}
 static void velocity(struct reb_particle p,double*v){v[0]=p.vx;v[1]=p.vy;v[2]=p.vz;}
 static void relative(struct reb_particle a,struct reb_particle b,double*r,double*v){r[0]=a.x-b.x;r[1]=a.y-b.y;r[2]=a.z-b.z;v[0]=a.vx-b.vx;v[1]=a.vy-b.vy;v[2]=a.vz-b.vz;}
-static void momentum(double*p,double*l){p[0]=p[1]=p[2]=l[0]=l[1]=l[2]=0;for(unsigned i=0;i<sim->N;i++){struct reb_particle a=sim->particles[i];p[0]+=a.m*a.vx;p[1]+=a.m*a.vy;p[2]+=a.m*a.vz;l[0]+=a.m*(a.y*a.vz-a.z*a.vy);l[1]+=a.m*(a.z*a.vx-a.x*a.vz);l[2]+=a.m*(a.x*a.vy-a.y*a.vx);}}
+static void momentum(double*p,double*l){
+ double compensation[6]={0},sum[6]={0};
+ for(unsigned i=0;i<sim->N;i++){
+  struct reb_particle a=sim->particles[i];double values[6]={a.m*a.vx,a.m*a.vy,a.m*a.vz,a.m*(a.y*a.vz-a.z*a.vy),a.m*(a.z*a.vx-a.x*a.vz),a.m*(a.x*a.vy-a.y*a.vx)};
+  for(int k=0;k<6;k++){double y=values[k]-compensation[k],t=sum[k]+y;compensation[k]=(t-sum[k])-y;sum[k]=t;}
+ }for(int k=0;k<3;k++){p[k]=sum[k];l[k]=sum[k+3];}
+}
 static double sum_store(void){double e=0;for(int i=0;i<count;i++)e+=store[i];return e;}
 static double sum_heat(void){double e=0;for(int i=0;i<count;i++)e+=heat[i];return e;}
 static double residual(void){return reb_simulation_energy(sim)+sum_store()+sum_heat()-initial_e-boundary_e;}
@@ -81,7 +89,7 @@ int cloud_reset(int n,double ri,double ro,int seed){
 void cloud_exact(int flag){exact_mode=flag!=0;}
 void cloud_coordination(int flag){enabled=flag!=0;}
 int cloud_launch(double speed,double offset,double az,double el,double roll){
- if(!sim||np>=MAX_P||!isfinite(speed)||!isfinite(offset)||!isfinite(az)||!isfinite(el)||!isfinite(roll)||speed<5||speed>300||fabs(offset)>outer*1.5||fabs(az)>180||fabs(el)>90||fabs(roll)>180)return 0;
+ if(!sim||np>=MAX_P||!isfinite(speed)||!isfinite(offset)||!isfinite(az)||!isfinite(el)||!isfinite(roll)||speed<5||speed>3000||fabs(offset)>outer*1.5||fabs(az)>180||fabs(el)>90||fabs(roll)>180)return 0;
  reb_simulation_synchronize(sim);double before=reb_simulation_energy(sim),p0[3],l0[3],p1[3],l1[3];momentum(p0,l0);
  double a=az*PI/180,e=el*PI/180,q=roll*PI/180,d[3]={cos(e)*cos(a),cos(e)*sin(a),sin(e)},s[3]={-sin(a),cos(a),0},u[3]={-sin(e)*cos(a),-sin(e)*sin(a),cos(e)};
  struct reb_particle star=sim->particles[0],body={0};body.m=PM;
@@ -182,11 +190,11 @@ static int step_once(double dt,int coupled){
 double cloud_advance(double days,double wall_ms){
  if(!sim||halted||!isfinite(days)||days<=0)return 0;days=fmin(days,3652.5);double start=sim->t,end=start+days*DAY,wall=now_ms();
  while(sim->t<end-1e-5){
-  struct reb_particle sun=sim->particles[0];int coupled=0;double min_radius=outer*AU;
-  for(int i=0;i<np;i++){double r[3],v[3];relative(sim->particles[packet[i].body],sun,r,v);double radius=norm3(r);min_radius=fmin(min_radius,radius);if(radius<.08*AU){halted=1;break;}if(enabled&&packet[i].plan!=3&&radius<(outer+2.5)*AU)coupled=1;}
+  struct reb_particle sun=sim->particles[0];int coupled=0;double min_radius=outer*AU,crossing=1e100;
+  for(int i=0;i<np;i++){double r[3],v[3];relative(sim->particles[packet[i].body],sun,r,v);double radius=norm3(r);min_radius=fmin(min_radius,radius);crossing=fmin(crossing,.05*radius/fmax(1.,norm3(v)));if(radius<.08*AU){halted=1;break;}if(enabled&&packet[i].plan!=3&&radius<(outer+2.5)*AU)coupled=1;}
   if(halted)break;
   double dt=coupled?clamp(.05*pow(min_radius/AU,1.5),.125,1)*DAY:32*pow(inner,1.5)*DAY;
-  dt=fmin(dt,end-sim->t);int length=write_snapshot(snapshot);double accepted=dt;
+  dt=fmin(dt,crossing)*resolution;dt=fmin(dt,end-sim->t);int length=write_snapshot(snapshot);double accepted=dt;
   int valid=0;for(int attempt=0;attempt<9;attempt++){
    step_once(accepted,coupled);
    if(isfinite(residual())&&fabs(residual()/REF)<1e-4){valid=1;break;}
@@ -205,3 +213,7 @@ int cloud_state(void){
  return q;
 }
 double* cloud_output(void){return output;}
+
+#ifdef CLOUD_TESTS
+int cloud_test_exchange(int i,int j,double impulse,double dt,int owner){return exchange(i,j,impulse,dt,owner);}
+#endif
