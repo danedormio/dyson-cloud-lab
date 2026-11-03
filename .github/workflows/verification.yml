@@ -1,51 +1,119 @@
-name: Physics and browser verification
+name: Responsive cloud experiment acceptance
 on:
-  push:
-    branches: [main, "foundation/**", "feat/issue-3-recoverable-sessions"]
-  pull_request:
-    branches: [main, "foundation/rebound-ci"]
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
-  physics:
-    name: REBOUND solar system physics
+  hosted:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - run: python -m pip install -r requirements.txt
-      - run: python -m pytest tests/test_rebound.py tests/test_sessions.py tests/test_recovery.py tests/test_checkout_preflight.py tests/test_coordinated.py tests/test_simple_sessions.py -v
-
-  browser:
-    name: Chromium browser interactions
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: python -m pip install -r requirements.txt
+          python-version: '3.11'
+      - run: python -m pip install 'playwright>=1.50,<2'
       - run: python -m playwright install --with-deps chromium
-      - run: python -m pytest tests/test_browser.py tests/test_minimal_browser.py tests/test_startup_browser.py -v
-      - name: Observe deployed Skunkworks parity (explicit dispatch only)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Inspect the actual hosted simulator
         env:
-          DYSON_LIVE_SHA: ${{ github.sha }}
+          EXPECTED_BUILD: c2d2cc17e6ef6ca7d6a9ea47697fdd88aff1c5df
         run: |
-          python -m pytest tests/test_live_skunkworks.py -vs
-          test -f test-artifacts/live-skunkworks-observations.json
-      - name: Keep graphical evidence
+          python -u - <<'PY'
+          import json, os, sys, time, urllib.request
+          from pathlib import Path
+          from types import SimpleNamespace
+          from playwright.sync_api import sync_playwright
+          sys.path.insert(0, 'tests')
+          from test_minimal_browser import test_minimal_launch_controls_motion_and_mobile, test_cloud_volume_paused_start_rate_and_camera, test_playback_blends_acknowledged_samples_and_pause_is_exact, test_3d_aim_orbit_inspection_recovery_and_mobile_launch
+          from test_startup_browser import (
+              test_old_workbench_recovery_cannot_block_minimal_startup,
+              test_retry_reconnects_after_startup_service_failure,
+              test_start_fresh_archives_unrecoverable_scene_without_touching_old_work,
+              test_blocked_browser_storage_still_allows_temporary_physics_session,
+              test_retry_reads_committed_state_after_lost_step_response,
+              test_full_storage_fresh_start_keeps_original_and_runs_temporarily)
+          base='https://dyson-cloud-lab-rebound-staging.onrender.com'
+          with urllib.request.urlopen(base+'/health', timeout=120) as response:
+              health=json.load(response)
+          assert health['revision']==os.environ['EXPECTED_BUILD'], health
+          print('Exact hosted build:',health['revision'],flush=True)
+          with sync_playwright() as p:
+              browser=p.chromium.launch(headless=True)
+              try:
+                  cases=[test_old_workbench_recovery_cannot_block_minimal_startup,
+                         test_retry_reconnects_after_startup_service_failure,
+                         test_start_fresh_archives_unrecoverable_scene_without_touching_old_work,
+                         test_blocked_browser_storage_still_allows_temporary_physics_session,
+                         test_retry_reads_committed_state_after_lost_step_response,
+                         test_full_storage_fresh_start_keeps_original_and_runs_temporarily,
+                         test_minimal_launch_controls_motion_and_mobile,
+                         test_cloud_volume_paused_start_rate_and_camera,
+                         test_playback_blends_acknowledged_samples_and_pause_is_exact,
+                         test_3d_aim_orbit_inspection_recovery_and_mobile_launch]
+                  for case in cases:
+                      case(SimpleNamespace(url=base), browser)
+                      print('HOSTED CASE PASSED:',case.__name__,flush=True)
+              except Exception:
+                  Path('test-artifacts').mkdir(exist_ok=True)
+                  for ci,context in enumerate(browser.contexts):
+                      for pi,failed_page in enumerate(context.pages):
+                          failed_page.screenshot(path=f'test-artifacts/failure-{ci}-{pi}.png')
+                          print(failed_page.evaluate("({time:window.cloudView?.world?.time,decision:document.querySelector('#decision')?.textContent,reason:document.querySelector('#reason')?.textContent,connection:document.querySelector('#connection')?.textContent})"),flush=True)
+                  raise
+              import statistics
+              page=browser.new_page(viewport={'width':1440,'height':960})
+              errors=[];latencies=[]
+              page.on('pageerror',lambda e:errors.append(str(e)))
+              def record_request(request):
+                  if request.url.endswith('/api/simple/step'):
+                      latency=request.timing['responseEnd']/1000
+                      if latency>=0:latencies.append(latency)
+              page.on('requestfinished',record_request)
+              page.goto(base+'/simple',timeout=120000)
+              page.wait_for_function('!!window.cloudView?.world',timeout=120000)
+              assert page.locator('#play').inner_text()=='Play'
+              outcomes={}
+              Path('test-artifacts').mkdir(exist_ok=True)
+              for mode,enabled in [('coordinated',True),('passive',False)]:
+                  page.click('#reset');page.wait_for_function('cloudView.world.time===0 && !cloudView.world.packet')
+                  if enabled:page.check('#coord')
+                  else:page.uncheck('#coord')
+                  page.select_option('#rate','16')
+                  page.click('#launch');page.wait_for_function('!!cloudView.world.packet')
+                  latencies.clear();started=time.perf_counter();page.click('#play')
+                  try:page.wait_for_function('cloudView.world.time>=112',timeout=180000)
+                  except Exception:
+                      page.screenshot(path='test-artifacts/responsive-encounter-timeout.png')
+                      print('Encounter stalled:',page.evaluate('({time:cloudView.world.time,reason:document.querySelector("#reason").textContent})'),flush=True)
+                      raise
+                  page.click('#play');page.wait_for_timeout(1000)
+                  state=page.evaluate('cloudView.world');state.pop('recovery',None)
+                  elapsed=time.perf_counter()-started
+                  median=statistics.median(latencies) if latencies else None
+                  assert not errors,errors
+                  if enabled:
+                      assert state['packet']['specific_energy']<0,state['packet']
+                      assert state['work_j']<0 and state['exchanged_impulse']>0
+                      assert elapsed<120,('Hosted encounter remains too slow',elapsed)
+                      assert median is not None and median<2.5,('Hosted update latency remains too slow',median)
+                  else:
+                      assert state['packet']['specific_energy']>0,state['packet']
+                      assert state['work_j']==0 and state['exchanged_impulse']==0
+                  page.click('#packetinfo')
+                  assert 'Closest approach:' in page.locator('#selectedstate').inner_text()
+                  page.screenshot(path=f'test-artifacts/responsive-{mode}-desktop.png')
+                  page.set_viewport_size({'width':390,'height':900})
+                  page.screenshot(path=f'test-artifacts/responsive-{mode}-mobile.png',full_page=True)
+                  page.set_viewport_size({'width':1440,'height':960});page.click('#close')
+                  outcomes[mode]={'elapsed_seconds':elapsed,'median_step_seconds':median,'steps':len(latencies),'state':state}
+                  print('HOSTED ENCOUNTER:',json.dumps({k:v for k,v in outcomes[mode].items() if k!='state'}|{'mode':mode,'day':state['time'],'packet_energy':state['packet']['specific_energy'],'packet_scale_residual':state['energy_residual_packet_scale']}),flush=True)
+              Path('test-artifacts/responsive-hosted-observations.json').write_text(json.dumps({'health':health,'outcomes':outcomes,'page_errors':errors}))
+              browser.close()
+          PY
+      - name: Retain visible evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: browser-screenshots
+          name: first-light-hosted-evidence
           path: test-artifacts/
-          if-no-files-found: ignore
-
+          if-no-files-found: error
