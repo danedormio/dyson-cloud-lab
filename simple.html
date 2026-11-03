@@ -29,6 +29,7 @@ let displayFrom=null,displayStarted=0,displayDuration=250,renderBodies=[],render
 const backup = RecoveryBackup.create('dyson-first-light-v13-backups');
 let stars=Array.from({length:420},(_,i)=>({x:((i*16807%2147483647)%997)/997,y:((i*48271%2147483647)%991)/991,r:i%7===0?1:.45}));
 const controls=['speed','offset','angle','elevation','roll','coord'];
+const initialArrivalHint=$('launchhint').innerHTML;
 function values(){return {speed:+$('speed').value,offset:+$('offset').value,angle:+$('angle').value,elevation:+$('elevation').value,roll:+$('roll').value,enabled:$('coord').checked}}
 function labels(){$('speedValue').textContent=$('speed').value+' km/s';$('offsetValue').textContent=(+$('offset').value).toFixed(2)+' AU';$('angleValue').textContent=$('angle').value+'°';$('elevationValue').textContent=$('elevation').value+'°';$('rollValue').textContent=$('roll').value+'°'}
 controls.forEach(id=>$(id).addEventListener('input',labels));
@@ -80,7 +81,7 @@ function setWorld(w){
   } else if(!playing || !world || w.time<world.time || w.bodies.length!==world.bodies.length){displayFrom=null;}
   world=w;
   if(w.packet&&w.launch_settings){for(const id of controls){if(id==='coord')$(id).checked=w.enabled;else $(id).value=w.launch_settings[id]??0;}labels();}
-  if(w.packet&&!w.launch_settings)$('launchhint').textContent='Earlier saved run: launch controls were not recorded with this scene. Reset to design a new arrival.';
+  $('launchhint').innerHTML=w.packet&&!w.launch_settings?'Earlier saved run: launch controls were not recorded with this scene. Reset to design a new arrival.':initialArrivalHint;
   launched=!!w.packet;if(w.halted){playing=false;$('play').textContent='Paused near star';}$('time').textContent='Day '+w.time.toFixed(0);$('connection').textContent=(playing?'Running':'Paused')+' · REBOUND'+(backupAvailable?'':' · temporary session');$('decision').textContent=w.decision;$('reason').textContent=w.reason;$('pspeed').textContent=w.packet?w.packet.speed.toFixed(1)+' km/s':'—';$('pstate').textContent=w.packet?(w.packet.specific_energy<0?'Bound orbit':'Unbound'):'Not launched';$('pstate').title=w.packet?.status||'';$('energy').textContent=(100*w.stored_j/(48*2e22)).toFixed(1)+'%';$('accounting').textContent='Heat retained: '+w.heat_j.toExponential(2)+' J. Mechanical work: '+w.work_j.toExponential(2)+' J. Integration residual / reference packet energy scale: '+w.energy_residual_packet_scale.toExponential(2)+'.';if(w.packet&&w.time!==lastTime){const p=w.bodies.at(-1);trail.push([p.x,p.y,p.z]);if(trail.length>1500)trail.shift()}lastTime=w.time;inspect();buttons();}
 function error(problem) {
   playing=false;

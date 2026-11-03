@@ -162,3 +162,21 @@ def test_3d_aim_orbit_inspection_recovery_and_mobile_launch(backend,chromium):
     Path('test-artifacts').mkdir(exist_ok=True)
     page.screenshot(path='test-artifacts/complete-cloud-mobile.png',full_page=True)
     page.close()
+
+
+def test_reset_clears_legacy_arrival_notice(backend,chromium):
+    page=chromium.new_page()
+    page.goto(backend.url+'/simple');page.wait_for_function('!!cloudView?.world')
+    page.click('#launch');page.wait_for_function('!!cloudView.world.packet')
+    def legacy_metadata(route):
+        response=route.fetch();state=response.json();state['launch_settings']=None
+        route.fulfill(response=response,json=state)
+    page.route('**/api/simple/session',legacy_metadata)
+    page.reload();page.wait_for_function('document.querySelector("#launchhint").textContent.includes("Earlier saved run")')
+    page.unroute('**/api/simple/session',legacy_metadata)
+    page.click('#reset');page.wait_for_function('!cloudView.world.packet')
+    assert 'Earlier saved run' not in page.locator('#launchhint').inner_text()
+    assert 'Press Play' in page.locator('#launchhint').inner_text()
+    page.click('#launch');page.wait_for_function('!!cloudView.world.launch_settings')
+    assert 'Earlier saved run' not in page.locator('#launchhint').inner_text()
+    page.close()
