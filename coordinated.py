@@ -38,25 +38,36 @@ class CoordinatedCloud:
                          **dict(zip(('vx','vy','vz'),[v*x/length for x in tangent])))
             self.reference_radii.append(r)
         self.sim.move_to_com()
+        self._particles=tuple(self.sim.particles)
         self.stores=[.5*CAPACITY]*N; self.heat=[0.]*N; self.activity=[0.]*N
         self.mode='Ready'; self.reason='Aim a packet, then launch. Compare the same arrival with coordination off.'
+        self.launch_settings=None
+        self.packet_activity=[0.]*N; self.neighbor_links=[]
         self.enabled=True; self.packet=None; self.launch_time=0.; self.bound_since=None
         self.plan='Waiting'; self.plan_time=0.; self.launch_state=None; self.observations=[]
         self.initial_energy=self.sim.energy(); self.initial_p=self.momentum(); self.initial_l=self.angular()
         self.work_total=0.; self.exchanged=0.; self.last_error=0.; self.halted=False
         if saved: self.restore(saved)
 
-    def momentum(self): return [math.fsum(p.m*getattr(p,k) for p in self.sim.particles) for k in ('vx','vy','vz')]
-    def angular(self): return math.fsum(p.m*(p.x*p.vy-p.y*p.vx) for p in self.sim.particles)
+    def momentum(self): return [math.fsum(p.m*getattr(p,k) for p in self._particles) for k in ('vx','vy','vz')]
+    def angular(self): return math.fsum(p.m*(p.x*p.vy-p.y*p.vx) for p in self._particles)
 
-    def launch(self,speed=45.,offset=.65,angle=0.,enabled=True):
+    def launch(self,speed=45.,offset=.65,angle=0.,enabled=True,elevation=0.,roll=0.):
         if self.packet is not None: raise ValueError('Reset before another launch')
-        if not (5<=speed<=180 and -1.5<=offset<=1.5 and -60<=angle<=60): raise ValueError('Launch outside limits')
+        if not (5<=speed<=180 and -1.5<=offset<=1.5 and -180<=angle<=180 and -90<=elevation<=90 and -180<=roll<=180): raise ValueError('Launch outside limits')
         self.enabled=enabled
-        a=math.radians(angle); d=[math.cos(a),math.sin(a)]; side=[-d[1],d[0]]
-        self.sim.add(m=PACKET_MASS,x=AU*(-2.2*d[0]+offset*side[0]),y=AU*(-2.2*d[1]+offset*side[1]),vx=speed*1000*d[0],vy=speed*1000*d[1])
+        a,e,q=map(math.radians,(angle,elevation,roll))
+        d=[math.cos(e)*math.cos(a),math.cos(e)*math.sin(a),math.sin(e)]
+        side=[-math.sin(a),math.cos(a),0.]
+        up=[-math.sin(e)*math.cos(a),-math.sin(e)*math.sin(a),math.cos(e)]
+        impact=[math.cos(q)*x+math.sin(q)*y for x,y in zip(side,up)]
+        position=[AU*(-2.2*x+offset*y) for x,y in zip(d,impact)]
+        velocity=[speed*1000*x for x in d]
+        self.sim.add(m=PACKET_MASS,**dict(zip(('x','y','z'),position)),**dict(zip(('vx','vy','vz'),velocity)))
+        self.launch_settings=dict(speed=speed,offset=offset,angle=angle,elevation=elevation,roll=roll,enabled=enabled)
+        self._particles=tuple(self.sim.particles)  # add may relocate the C particle array
         self.packet=N+1; self.launch_time=self.sim.t
-        p=self.sim.particles[self.packet]; self.launch_state=[vec(p),vel(p)]
+        p=self._particles[self.packet]; self.launch_state=[vec(p),vel(p)]
         self.initial_energy=self.sim.energy(); self.initial_p=self.momentum(); self.initial_l=self.angular()
         self.work_total=0.; self.exchanged=0.
         # Coarse, explicitly fallible capacity screening. Real decisions remain local.
@@ -83,7 +94,7 @@ class CoordinatedCloud:
         No extra torque. Negative work regenerates at 90%; positive work draws
         electrical energy at 90%. Reject commands that violate local resources.
         """
-        a,b=self.sim.particles[i],self.sim.particles[j]
+        a,b=self._particles[i],self._particles[j]
         r=sub(vec(a),vec(b)); distance=norm(r)
         if distance==0 or distance>RANGE: return False
         u=[x/distance for x in r]
@@ -103,7 +114,7 @@ class CoordinatedCloud:
         dv=abs(impulse)/b.m
         if dv>2. or norm(vel(b))>60000: return False
         # Refuse commands that push a station outside its initial orbital envelope.
-        sun=self.sim.particles[0]
+        sun=self._particles[0]
         rb=sub(vec(b),vec(sun)); vb=sub(vel(b),vel(sun)); radius=norm(rb)
         proposed=[v-impulse*x/b.m for v,x in zip(vb,u)]
         initial_radius=self.reference_radii[j-1]
@@ -116,19 +127,24 @@ class CoordinatedCloud:
         self.stores[k]+=electrical; self.heat[k]+=heat
         self.work_total+=delta; self.exchanged+=abs(impulse)
         self.activity[k]=max(self.activity[k],min(1.,abs(impulse)/(FORCE*dt)))
+        if i==self.packet:
+            self.packet_activity[k]=max(self.packet_activity[k],min(1.,abs(impulse)/(FORCE*dt)))
+        elif 1<=i<=N and 1<=j<=N:
+            self.neighbor_links.append([i,j])
         return True
 
     def controls(self,dt):
         self.activity=[x*.8 for x in self.activity]
+        self.packet_activity=[x*.8 for x in self.packet_activity];self.neighbor_links=[]
         if not self.enabled or self.packet is None or self.plan not in ('Attempt capture','Assist only'): return
-        packet=self.sim.particles[self.packet]; sun=self.sim.particles[0]
+        packet=self._particles[self.packet]; sun=self._particles[0]
         # Each station uses a delayed packet observation, extrapolated linearly.
         # Observations are sampled at control ticks; delayed lookup never reads future state.
         now=self.sim.t
         self.observations.append([now,vec(packet),vel(packet)])
         self.observations=[o for o in self.observations if now-o[0]<4*DAY]
         for k in range(N):
-            node=self.sim.particles[k+1]
+            node=self._particles[k+1]
             if now<self.plan_time+norm(vec(node))/C: continue
             # A measurement is usable only after its emitted signal can reach
             # this receiver. No current packet geometry enters the decision.
@@ -155,13 +171,13 @@ class CoordinatedCloud:
         # Nearest-neighbor central damping spreads relative radial disturbance.
         # Local relative-velocity sensing only; no global instantaneous state.
         # Neighbor sensing is taken at this control tick; radio plans remain delayed.
-        positions=[vec(p) for p in self.sim.particles]
+        positions=[vec(p) for p in self._particles]
         for k in range(N):
-            if now<self.plan_time+norm(vec(self.sim.particles[k+1]))/C: continue
+            if now<self.plan_time+norm(vec(self._particles[k+1]))/C: continue
             i=k+1
             j=min((n for n in range(1,N+1) if n!=i),
-                  key=lambda n:sum((a-b)**2 for a,b in zip(positions[i],positions[n])))
-            a,b=self.sim.particles[i],self.sim.particles[j]
+                  key=lambda n:math.dist(positions[i],positions[n]))
+            a,b=self._particles[i],self._particles[j]
             line=sub(vec(a),vec(b)); length=norm(line)
             if length>RANGE or not length: continue
             u=[x/length for x in line]
@@ -173,7 +189,7 @@ class CoordinatedCloud:
         if not 0<days<=4: raise ValueError('Step outside limit')
         end=self.sim.t+days*DAY
         while self.sim.t<end-.001:
-            if self.packet is not None and norm(sub(vec(self.sim.particles[self.packet]),vec(self.sim.particles[0])))<.08*AU:
+            if self.packet is not None and norm(sub(vec(self._particles[self.packet]),vec(self._particles[0])))<.08*AU:
                 self.halted=True
                 break
             if self.halted: break
@@ -190,15 +206,15 @@ class CoordinatedCloud:
         return self.state()
 
     def state(self):
-        sun=self.sim.particles[0]; bodies=[]
-        for i,p in enumerate(self.sim.particles):
+        sun=self._particles[0]; bodies=[]
+        for i,p in enumerate(self._particles):
             bodies.append(dict(id=i,x=p.x/AU,y=p.y/AU,z=p.z/AU,vx=p.vx,vy=p.vy,vz=p.vz,mass=p.m,
                 active=self.activity[i-1] if 1<=i<=N else 0,
                 energy=self.stores[i-1]/CAPACITY if 1<=i<=N else None,
                 heat=self.heat[i-1]/CAPACITY if 1<=i<=N else None))
         packet=None
         if self.packet is not None:
-            p=self.sim.particles[self.packet]; r=sub(vec(p),vec(sun)); v=sub(vel(p),vel(sun)); radius=norm(r)
+            p=self._particles[self.packet]; r=sub(vec(p),vec(sun)); v=sub(vel(p),vel(sun)); radius=norm(r)
             energy=dot(v,v)/2-self.sim.G*(sun.m+p.m)/radius
             h=norm([r[1]*v[2]-r[2]*v[1],r[2]*v[0]-r[0]*v[2],r[0]*v[1]-r[1]*v[0]]); mu=self.sim.G*(sun.m+p.m)
             ecc=math.sqrt(max(0.,1+2*energy*h*h/mu**2))
@@ -218,16 +234,16 @@ class CoordinatedCloud:
         # Also report at packet-work scale; Sun-scale relative drift alone hides errors.
         scale=PACKET_MASS*(45000.**2)
         return dict(version='minimal-cloud-v1.3',engine='REBOUND IAS15',time=self.sim.t/DAY,bodies=bodies,packet=packet,
-            decision=self.mode,reason=self.reason,plan=self.plan,enabled=self.enabled,
-            target_au=1.2,halted=self.halted,links=[i+1 for i,x in enumerate(self.activity) if x>.01],
+            decision=self.mode,reason=self.reason,plan=self.plan,enabled=self.enabled,launch_settings=self.launch_settings,
+            target_au=1.2,halted=self.halted,links=[i+1 for i,x in enumerate(self.packet_activity) if x>.01],neighbor_links=self.neighbor_links,
             stored_j=sum(self.stores),heat_j=sum(self.heat),work_j=self.work_total,
             exchanged_impulse=self.exchanged,energy_residual_j=residual,energy_residual_packet_scale=residual/scale,
             momentum_residual=norm(sub(self.momentum(),self.initial_p)),angular_residual=self.angular()-self.initial_l,
             inventory_kg=N*NODE_MASS,inventory_earth=N*NODE_MASS/5.9722e24)
 
     def snapshot(self):
-        return dict(reference_radii=self.reference_radii,time=self.sim.t,bodies=[[p.m,*vec(p),*vel(p)] for p in self.sim.particles],
-            **{k:getattr(self,k) for k in ('stores','heat','activity','mode','reason','enabled','packet','launch_time','bound_since','plan','plan_time','launch_state','observations','initial_energy','initial_p','initial_l','work_total','exchanged','halted')})
+        return dict(reference_radii=self.reference_radii,time=self.sim.t,bodies=[[p.m,*vec(p),*vel(p)] for p in self._particles],
+            **{k:getattr(self,k) for k in ('packet_activity','neighbor_links','launch_settings','stores','heat','activity','mode','reason','enabled','packet','launch_time','bound_since','plan','plan_time','launch_state','observations','initial_energy','initial_p','initial_l','work_total','exchanged','halted')})
 
     def restore(self,saved):
         if len(saved['bodies']) not in (N+1,N+2):raise ValueError('Invalid minimal cloud')
@@ -236,8 +252,13 @@ class CoordinatedCloud:
             if len(row)!=7 or not all(math.isfinite(float(x)) for x in row):raise ValueError('Invalid body')
             m,x,y,z,vx,vy,vz=row;sim.add(m=m,x=x,y=y,z=z,vx=vx,vy=vy,vz=vz)
         sim.t=saved['time'];self.sim=sim
+        self._particles=tuple(sim.particles)
         for k in self.snapshot():
-            if k not in ('time','bodies','reference_radii'):setattr(self,k,saved.get(k,False) if k=='halted' else saved[k])
+            if k not in ('time','bodies','reference_radii','packet_activity','neighbor_links'):
+                setattr(self,k,saved.get(k,False) if k=='halted' else saved.get(k) if k=='launch_settings' else saved[k])
 
         # Older ring snapshots retain their original resource/orbit envelope.
         self.reference_radii=saved.get('reference_radii',[(.8+.4*(k//16))*AU for k in range(N)])
+
+        self.packet_activity=saved.get('packet_activity',[0.]*N)
+        self.neighbor_links=saved.get('neighbor_links',[])

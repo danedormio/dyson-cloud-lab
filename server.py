@@ -100,7 +100,9 @@ class ReplayRequest(InputModel):
 class MinimalLaunch(InputModel):
     speed: float = Field(default=45, ge=5, le=180)
     offset: float = Field(default=.65, ge=-1.5, le=1.5)
-    angle: float = Field(default=0, ge=-60, le=60)
+    angle: float = Field(default=0, ge=-180, le=180)
+    elevation: float = Field(default=0, ge=-90, le=90)
+    roll: float = Field(default=0, ge=-180, le=180)
     enabled: bool = True
     days: float = Field(default=2., ge=1/12, le=2.)
 
