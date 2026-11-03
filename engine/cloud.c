@@ -91,9 +91,10 @@ void cloud_coordination(int flag){enabled=flag!=0;}
 int cloud_launch(double speed,double offset,double az,double el,double roll){
  if(!sim||np>=MAX_P||!isfinite(speed)||!isfinite(offset)||!isfinite(az)||!isfinite(el)||!isfinite(roll)||speed<5||speed>3000||fabs(offset)>outer*1.5||fabs(az)>180||fabs(el)>90||fabs(roll)>180)return 0;
  reb_simulation_synchronize(sim);double before=reb_simulation_energy(sim),p0[3],l0[3],p1[3],l1[3];momentum(p0,l0);
+ double origin=1.35*outer+.02*np; /* distinct simultaneous arrival slots, AU */
  double a=az*PI/180,e=el*PI/180,q=roll*PI/180,d[3]={cos(e)*cos(a),cos(e)*sin(a),sin(e)},s[3]={-sin(a),cos(a),0},u[3]={-sin(e)*cos(a),-sin(e)*sin(a),cos(e)};
  struct reb_particle star=sim->particles[0],body={0};body.m=PM;
- body.x=star.x+AU*(-1.35*outer*d[0]+offset*(cos(q)*s[0]+sin(q)*u[0]));body.y=star.y+AU*(-1.35*outer*d[1]+offset*(cos(q)*s[1]+sin(q)*u[1]));body.z=star.z+AU*(-1.35*outer*d[2]+offset*(cos(q)*s[2]+sin(q)*u[2]));
+ body.x=star.x+AU*(-origin*d[0]+offset*(cos(q)*s[0]+sin(q)*u[0]));body.y=star.y+AU*(-origin*d[1]+offset*(cos(q)*s[1]+sin(q)*u[1]));body.z=star.z+AU*(-origin*d[2]+offset*(cos(q)*s[2]+sin(q)*u[2]));
  body.vx=star.vx+speed*1000*d[0];body.vy=star.vy+speed*1000*d[1];body.vz=star.vz+speed*1000*d[2];
  reb_simulation_add(sim,body);reb_simulation_reset_integrator(sim);sim->integrator=exact_mode?REB_INTEGRATOR_IAS15:REB_INTEGRATOR_WHFAST;sim->ri_whfast.safe_mode=0;sim->ri_ias15.epsilon=1e-10;
  boundary_e+=reb_simulation_energy(sim)-before;momentum(p1,l1);for(int k=0;k<3;k++){boundary_p[k]+=p1[k]-p0[k];boundary_l[k]+=l1[k]-l0[k];}
@@ -165,7 +166,26 @@ static int write_snapshot(double*out){
  for(int i=0;i<np;i++){Packet*b=&packet[i];out[q++]=b->body;out[q++]=b->plan;out[q++]=b->birth;out[q++]=b->target;out[q++]=b->plan_t;out[q++]=b->speed;out[q++]=b->offset;out[q++]=b->az;out[q++]=b->el;out[q++]=b->roll;out[q++]=b->nh;for(int h=0;h<b->nh;h++){out[q++]=b->h[h].t;for(int k=0;k<3;k++)out[q++]=b->h[h].r[k];for(int k=0;k<3;k++)out[q++]=b->h[h].v[k];}}
  return q;
 }
+/* Validate the complete variable-length layout before touching the live world. */
+static int valid_snapshot(const double*in,int length){
+ if(length<24||length>SNAP_SIZE||in[0]!=24001)return 0;
+ for(int i=0;i<length;i++)if(!isfinite(in[i]))return 0;
+ int n=(int)in[1],p=(int)in[2];
+ if(n!=in[1]||p!=in[2]||n<1||n>MAX_N||p<0||p>MAX_P||in[3]<0||in[3]>1||in[4]<0||in[4]>2||in[5]<.3||in[6]<=in[5]||in[6]>60||in[7]<0)return 0;
+ int q=24,body_end=q+7*(1+n+p),node_end=body_end+7*n;
+ if(node_end>length)return 0;
+ for(;q<body_end;q+=7)if(in[q]<=0)return 0;
+ double cap=2e22*900./n;
+ for(;q<node_end;q+=7)if(in[q]<0||in[q]>cap||in[q+1]<0||in[q+1]>.25*cap||in[q+2]<=0)return 0;
+ for(int i=0;i<p;i++){
+  if(q+11>length||in[q]!=n+1+i||in[q+1]<1||in[q+1]>3)return 0;
+  double nh=in[q+10];if(nh<0||nh>HIST||(int)nh!=nh)return 0;
+  q+=11+7*(int)nh;if(q>length)return 0;
+ }
+ return q==length;
+}
 static int read_snapshot(const double*in,int length){
+ if(!valid_snapshot(in,length))return 0;
  if(length<24||length>SNAP_SIZE||in[0]!=24001)return 0;for(int i=0;i<length;i++)if(!isfinite(in[i]))return 0;
  int n=(int)in[1],p=(int)in[2];if(n<1||n>MAX_N||p<0||p>MAX_P||length<24+7*(1+n+p)+7*n+11*p)return 0;
  int q=0;q++;count=in[q++];np=in[q++];enabled=in[q++];halted=in[q++];inner=in[q++];outer=in[q++];double t=in[q++];if(inner<.3||outer<=inner||outer>60)return 0;
