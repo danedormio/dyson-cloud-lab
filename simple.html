@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>Dyson Cloud Laboratory</title>
+    <link rel="stylesheet" href="/lab-assets/cloud-lab.css?v=2" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <div class="eyebrow">DYSON CLOUD LABORATORY</div>
+        <h1>Orbital cloud</h1>
+      </div>
+      <div class="topright">
+        <span id="engineStatus">Starting local physics…</span
+        ><strong id="clock">Day 0</strong>
+      </div>
+    </header>
+    <main>
+      <section class="view" id="view">
+        <canvas
+          id="space"
+          tabindex="0"
+          aria-label="Three-dimensional orbital cloud. Drag to orbit the camera, scroll to zoom, click an object to inspect."
+        ></canvas>
+        <div class="hud">
+          <span class="badge" id="runState">Paused</span
+          ><span id="population">Preparing 900 elements</span>
+          <p id="decision">Preparing the cloud</p>
+          <p class="muted" id="detail">
+            REBOUND runs locally. Earlier server sessions do not block this
+            scene.
+          </p>
+          <div class="legend">
+            <span class="mint">● cloud</span><span class="amber">● packets</span
+            ><span>◌ reference guides</span>
+          </div>
+        </div>
+        <div id="notice" role="status" hidden></div>
+        <aside class="inspect" id="inspector" hidden>
+          <button id="closeInspect" class="close" aria-label="Close inspector">
+            ×
+          </button>
+          <h2 id="inspectTitle">Object</h2>
+          <div id="inspectBody"></div>
+        </aside>
+        <div class="viewhint">
+          DRAG TO ORBIT · SCROLL TO ZOOM · CLICK TO INSPECT
+        </div>
+        <div class="toolbar">
+          <button id="play" disabled>▶ Play</button
+          ><button id="launch" class="primary" disabled>＋ Launch packet</button
+          ><button id="reset" disabled>Reset cloud</button
+          ><button id="home">Home view</button
+          ><label class="rate"
+            >Playback target<select id="rate">
+              <option value="0.0416666667">1 hour / s</option>
+              <option value="1">1 day / s</option>
+              <option value="7">1 week / s</option>
+              <option value="182.625">½ year / s</option>
+              <option value="365.25" selected>1 year / s</option>
+              <option value="730.5">2 years / s</option>
+              <option value="1826.25">5 years / s</option>
+              <option value="3652.5">10 years / s</option>
+              <option value="7305">20 years / s</option>
+            </select></label
+          >
+          <div class="throughput">
+            <small>ACTUAL RATE</small><span id="actualRate">Paused</span>
+          </div>
+        </div>
+      </section>
+      <aside class="sidebar">
+        <section>
+          <h2>Design an arrival</h2>
+          <p class="hint">
+            Launch into the current cloud at any time. Playback keeps its state.
+            Every packet remains in the same physical world. Successive arrivals
+            start 0.02 AU farther back to avoid coincident point masses.
+          </p>
+          <div class="field">
+            <label for="speed"
+              >Arrival speed
+              <input
+                id="speedNumber"
+                type="number"
+                min="5"
+                max="3000"
+                step="1"
+                value="45"
+                aria-label="Arrival speed in km/s"
+              /><span>km/s</span></label
+            ><input
+              id="speed"
+              type="range"
+              min="0"
+              max="1000"
+              value="344"
+              aria-label="Arrival speed slider"
+            />
+          </div>
+          <div class="field">
+            <label for="offset"
+              >Impact offset <output id="offsetValue">5 AU</output></label
+            ><input
+              id="offset"
+              type="range"
+              min="-30"
+              max="30"
+              step=".1"
+              value="5"
+            />
+          </div>
+          <div class="field">
+            <label for="az"
+              >Approach direction <output id="azValue">0°</output></label
+            ><input
+              id="az"
+              type="range"
+              min="-180"
+              max="180"
+              step="1"
+              value="0"
+            />
+          </div>
+          <details>
+            <summary>3D aiming</summary>
+            <div class="field">
+              <label for="el"
+                >Approach tilt <output id="elValue">0°</output></label
+              ><input
+                id="el"
+                type="range"
+                min="-90"
+                max="90"
+                step="1"
+                value="0"
+              />
+            </div>
+            <div class="field">
+              <label for="roll"
+                >Offset rotation <output id="rollValue">0°</output></label
+              ><input
+                id="roll"
+                type="range"
+                min="-180"
+                max="180"
+                step="1"
+                value="0"
+              />
+            </div>
+          </details>
+          <label class="check"
+            ><input id="coord" type="checkbox" checked /> Coordinated
+            coupling</label
+          >
+        </section>
+        <section>
+          <h2>Cloud &amp; reference guides</h2>
+          <div class="cloud-fields">
+            <label
+              >Elements
+              <input
+                id="count"
+                type="number"
+                min="240"
+                max="1800"
+                step="60"
+                value="900" /></label
+            ><label
+              >Inner radius · AU<input
+                id="inner"
+                type="number"
+                min=".3"
+                max="59"
+                step=".1"
+                value="1" /></label
+            ><label
+              >Outer radius · AU<input
+                id="outer"
+                type="number"
+                min=".4"
+                max="60"
+                step="1"
+                value="30"
+            /></label>
+          </div>
+          <p class="hint">
+            Reset cloud applies these settings. The fixed material budget is
+            shared by the resolved elements.
+          </p>
+          <div class="checks">
+            <label
+              ><input id="plane" type="checkbox" checked /> Ecliptic
+              plane</label
+            ><label
+              ><input id="bounds" type="checkbox" checked /> Inner / outer
+              spheres</label
+            ><label
+              ><input id="earth" type="checkbox" checked /> Earth · 1 AU
+              reference</label
+            ><label
+              ><input id="trails" type="checkbox" checked /> Packet
+              trails</label
+            ><label
+              ><input id="cloudTrails" type="checkbox" /> Cloud trails</label
+            ><label><input id="labels" type="checkbox" /> Object labels</label>
+          </div>
+          <p class="hint">
+            The Earth marker and boundaries are visual references. They exert no
+            forces.
+          </p>
+        </section>
+        <section>
+          <h2>Packets <span class="muted" id="packetCount">0 / 32</span></h2>
+          <div id="packets" class="packets">
+            <p class="hint">
+              No packets launched. Use ＋ Launch packet below the view.
+            </p>
+          </div>
+        </section>
+        <section>
+          <h2>Resources &amp; accounting</h2>
+          <div class="ledger">
+            <span>Electrical stores</span><strong id="stored">50.0%</strong
+            ><span>Heat retained</span><strong id="heat">0 J</strong
+            ><span>Mechanical work</span><strong id="work">0 J</strong
+            ><span>Numerical balance</span><strong id="balance">—</strong>
+          </div>
+          <div class="save-status" id="saveStatus">
+            Scene starts paused · local browser storage
+          </div>
+          <div class="file-actions">
+            <button id="exportScene" disabled>Save scene file</button
+            ><label class="file-button"
+              >Load scene<input
+                id="importScene"
+                type="file"
+                accept=".json,application/json"
+                hidden
+            /></label>
+          </div>
+          <button id="downloadPrevious" hidden>
+            Download retained previous scene
+          </button>
+        </section>
+        <details class="model">
+          <summary>Physics, assumptions &amp; source</summary>
+          <p>
+            900 resolved masses by default. REBOUND 4.6.0 computes full mutual
+            Newtonian gravity, including the moving Sun. WHFast uses longer
+            coasting steps and finer encounter steps. A numerical energy guard
+            retries smaller steps; IAS15 is the validation reference.
+          </p>
+          <p>
+            Every central coupling impulse has an equal and opposite
+            counterpart. Electrical stores and retained heat balance exact
+            kinetic work. Force, power, thermal and orbital disturbance limits
+            can veto actions. The local rule predicts from light-delayed packet
+            observations; a simple global budget screen attempts capture,
+            assists, or declines. These are experimental control rules, not
+            optimal coordination.
+          </p>
+          <p>
+            9×10²⁰ kg is allocated within the provisional asteroid-belt budget.
+            Changing element count shares that fixed allocation. Coupling reach
+            is an idealized 2 AU. Hardware, field propagation, collisions,
+            cooling and relativistic transport are not modeled. Launch speed is
+            limited to 3000 km/s (about 0.01c); higher speeds need a
+            relativistic model. A bound orbit is not proof of stable parking.
+          </p>
+          <p>
+            Guide markers are not simulated planets. Display radii are enlarged.
+            Trails contain computed history; interpolation only joins
+            already-computed samples. Playback targets can exceed hardware
+            throughput; actual rate is shown.
+          </p>
+          <p>
+            New scenes are saved locally, without a server session. Older server
+            backups remain untouched.
+          </p>
+          <p>
+            <a href="/lab-assets/engine/corresponding-source.tar.gz"
+              >Physics executable: full source and GPL notice</a
+            >
+            · <a href="https://github.com/hannorein/rebound">REBOUND</a> ·
+            <a href="/simple-legacy" target="_blank" rel="noopener"
+              >Earlier server workbench</a
+            >
+          </p>
+        </details>
+      </aside>
+    </main>
+    <script src="/lab-assets/cloud-lab.js?v=2"></script>
+  </body>
+</html>

@@ -1,0 +1,74 @@
+name: Physics and browser verification
+on:
+  push:
+    branches: [main, "foundation/**", "feat/issue-3-recoverable-sessions"]
+  pull_request:
+    branches: [main, "foundation/rebound-ci"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  physics:
+    name: REBOUND solar system physics
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest tests/test_rebound.py tests/test_sessions.py tests/test_recovery.py tests/test_checkout_preflight.py tests/test_coordinated.py tests/test_simple_sessions.py tests/test_local_engine.py -v
+
+  browser:
+    name: Chromium browser interactions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -r requirements.txt
+      - run: python -m playwright install --with-deps chromium
+      - run: python -m pytest tests/test_browser.py tests/test_minimal_browser.py tests/test_startup_browser.py tests/test_cloud_lab_browser.py -v
+      - name: Observe deployed Skunkworks parity (explicit dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DYSON_LIVE_SHA: ${{ github.sha }}
+        run: |
+          python -m pytest tests/test_live_cloud_lab.py -vs
+          test -f test-artifacts/live-skunkworks-observations.json
+      - name: Keep graphical evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-screenshots
+          path: test-artifacts/
+          if-no-files-found: ignore
+
+
+  browser-engine-build:
+    name: Reproducible browser physics source
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile corresponding source with pinned upstream Emscripten
+        run: |
+          cp static/engine/manifest.json /tmp/shipped-manifest.json
+          git clone --depth 1 --branch 4.0.10 https://github.com/emscripten-core/emsdk.git /tmp/emsdk
+          /tmp/emsdk/emsdk install 4.0.10
+          /tmp/emsdk/emsdk activate 4.0.10
+          source /tmp/emsdk/emsdk_env.sh
+          engine/build_wasm.sh
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          expected=json.loads(Path('/tmp/shipped-manifest.json').read_text())
+          actual=json.loads(Path('static/engine/manifest.json').read_text())
+          assert actual['sha256']==expected['sha256'],(expected,actual)
+          print('Rebuilt executable matches shipped SHA256',actual['sha256'])
+          PY

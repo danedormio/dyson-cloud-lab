@@ -1,0 +1,96 @@
+/* WebGL viewing only. Float64 SI state stays in the backend snapshot; rendering
+ * converts to AU. Enlarged sphere glyphs and guide rings have no physics effect.
+ * No external assets or network dependencies. */
+class ExplorerView {
+  constructor(canvas, onSelect) {
+    this.canvas=canvas; this.onSelect=onSelect; this.home(); this.selected=null;
+    this.labels=document.querySelector('#sceneLabels');
+    this.status=document.querySelector('#renderStatus');
+    this.gl=canvas.getContext('webgl', {alpha:true,antialias:true, preserveDrawingBuffer:true});
+    if(!this.gl){this.status.textContent='WebGL unavailable. Use the object list to inspect state; enable WebGL for 3D.';return;}
+    try{this.init()}catch(error){this.status.textContent="3D graphics initialization failed. Object inspection remains available.";this.gl=null;return;}
+    canvas.addEventListener('webglcontextlost', e=>{e.preventDefault();this.lost=true;this.status.textContent='3D graphics interrupted. Waiting for WebGL recovery; simulation state is preserved.'});
+    canvas.addEventListener('webglcontextrestored', ()=>{this.init();this.lost=false;this.status.textContent=''});
+    const pointers=new Map(); let moved=false, start=null, pinch=null;
+    canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,[e.clientX,e.clientY]);start=[e.clientX,e.clientY];moved=false;pinch=null});
+    canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;const old=pointers.get(e.pointerId);pointers.set(e.pointerId,[e.clientX,e.clientY]);if(pointers.size===2){const [a,b]=[...pointers.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]);if(pinch&&d)this.zoom(pinch/d);pinch=d;moved=true}else{const dx=e.clientX-old[0],dy=e.clientY-old[1];if(Math.hypot(e.clientX-start[0],e.clientY-start[1])>4)moved=true;if(moved){if(e.shiftKey){const scale=this.distance/this.canvas.clientHeight;this.pan[0]-=dx*scale*Math.cos(this.az)+dy*scale*Math.sin(this.az)*Math.sin(this.el);this.pan[1]+=dx*scale*Math.sin(this.az)-dy*scale*Math.cos(this.az)*Math.sin(this.el);this.pan[2]-=dy*scale*Math.cos(this.el)}else{this.az+=dx*.008;this.el=Math.max(-1.5,Math.min(1.5,this.el+dy*.008));}}}});
+    const end=(e,cancel=false)=>{if(!pointers.has(e.pointerId))return;if(!cancel&&!moved&&pointers.size===1){const rect=canvas.getBoundingClientRect();this.pick(e.clientX-rect.left,e.clientY-rect.top)}pointers.delete(e.pointerId);pinch=null};
+    canvas.addEventListener('pointerup',e=>end(e));canvas.addEventListener('pointercancel',e=>end(e,true));
+    canvas.addEventListener('wheel',e=>{e.preventDefault();this.zoom(Math.exp(Math.max(-200,Math.min(200,e.deltaY))*.003))},{passive:false});
+    canvas.addEventListener('keydown',e=>{if(e.key==='Home'){this.home();e.preventDefault()}if(e.key==='+'||e.key==='=')this.zoom(.85);if(e.key==='-')this.zoom(1.15);if(e.key==='ArrowLeft')this.az-=.1;if(e.key==='ArrowRight')this.az+=.1;if(e.key==='ArrowUp')this.el=Math.min(1.5,this.el+.1);if(e.key==='ArrowDown')this.el=Math.max(-1.5,this.el-.1);if(e.key.startsWith('Arrow'))e.preventDefault()});
+  }
+  home(){this.az=.45;this.el=.65;this.distance=13;this.pan=[0,0,0];}
+  zoom(factor){this.distance=Math.max(2,Math.min(60,this.distance*factor));}
+  select(id){this.selected=id;}
+  init(){
+    const gl=this.gl;
+    const shader=(type,src)=>{const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s};
+    const vs=shader(gl.VERTEX_SHADER,`attribute vec3 aPosition; attribute vec3 aNormal;
+      uniform vec3 uCenter; uniform float uRadius,uAz,uEl,uDistance,uAspect;
+      varying vec3 vNormal;
+      void main(){vec3 p=uCenter+aPosition*uRadius;
+        float x=p.x*cos(uAz)-p.y*sin(uAz),y=p.x*sin(uAz)+p.y*cos(uAz);
+        float up=y*sin(uEl)+p.z*cos(uEl),depth=uDistance+y*cos(uEl)-p.z*sin(uEl);
+        gl_Position=vec4(2.0*x/uAspect,2.0*up,1.002*depth-0.2002,depth);
+        vNormal=aNormal;}`);
+    const fs=shader(gl.FRAGMENT_SHADER,`precision mediump float;uniform vec3 uColor;uniform float uLit;varying vec3 vNormal;
+      void main(){vec3 n=normalize(vNormal);float light=mix(1.0,0.26+0.74*max(0.0,dot(n,normalize(vec3(-1.0,-1.0,2.0)))),uLit);gl_FragColor=vec4(uColor*light,1.0);}`);
+    this.program=gl.createProgram();gl.attachShader(this.program,vs);gl.attachShader(this.program,fs);gl.linkProgram(this.program);if(!gl.getProgramParameter(this.program,gl.LINK_STATUS))throw Error('WebGL program link failed');
+    this.uniform={};for(const key of ['Center','Radius','Az','El','Distance','Aspect','Color','Lit'])this.uniform[key]=gl.getUniformLocation(this.program,'u'+key);
+    this.position=gl.getAttribLocation(this.program,'aPosition');this.normal=gl.getAttribLocation(this.program,'aNormal');
+    const vertices=[],normals=[];const point=(lat,lon)=>[Math.cos(lat)*Math.cos(lon),Math.cos(lat)*Math.sin(lon),Math.sin(lat)];
+    for(let i=0;i<12;i++)for(let j=0;j<20;j++){const a=point(-Math.PI/2+i*Math.PI/12,j*Math.PI/10),b=point(-Math.PI/2+(i+1)*Math.PI/12,j*Math.PI/10),c=point(-Math.PI/2+(i+1)*Math.PI/12,(j+1)*Math.PI/10),d=point(-Math.PI/2+i*Math.PI/12,(j+1)*Math.PI/10);for(const p of [a,b,c,a,c,d]){vertices.push(...p);normals.push(...p)}}
+    this.sphere=this.buffer(vertices);this.normals=this.buffer(normals);this.sphereCount=vertices.length/3;this.lines=gl.createBuffer();
+    const glowVS=shader(gl.VERTEX_SHADER,`attribute vec2 aPoint;uniform float uSize;void main(){gl_Position=vec4(aPoint,0.0,1.0);gl_PointSize=uSize;}`);
+    const glowFS=shader(gl.FRAGMENT_SHADER,`precision mediump float;uniform vec3 uColor;void main(){float r=length(gl_PointCoord-vec2(.5))*2.0;float a=pow(max(0.0,1.0-r),3.0)*.6;gl_FragColor=vec4(uColor*a,a);}`);
+    this.glowProgram=gl.createProgram();gl.attachShader(this.glowProgram,glowVS);gl.attachShader(this.glowProgram,glowFS);gl.linkProgram(this.glowProgram);
+    if(!gl.getProgramParameter(this.glowProgram,gl.LINK_STATUS))throw Error('Glow program link failed');
+    this.glowPoint=gl.getAttribLocation(this.glowProgram,'aPoint');this.glowSize=gl.getUniformLocation(this.glowProgram,'uSize');this.glowColor=gl.getUniformLocation(this.glowProgram,'uColor');this.glowBuffer=gl.createBuffer();
+    gl.enable(gl.DEPTH_TEST);gl.clearColor(0,0,0,0);
+  }
+  buffer(data){const gl=this.gl,b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.STATIC_DRAW);return b;}
+  project(p,w,h){const x=p[0]*Math.cos(this.az)-p[1]*Math.sin(this.az),y=p[0]*Math.sin(this.az)+p[1]*Math.cos(this.az),up=y*Math.sin(this.el)+p[2]*Math.cos(this.el),depth=this.distance+y*Math.cos(this.el)-p[2]*Math.sin(this.el);return {x:w/2+x*h/depth,y:h/2-up*h/depth,depth};}
+  pick(x,y){const hits=(this.projected||[]).filter(p=>p.depth>.1&&Math.hypot(x-p.x,y-p.y)<Math.max(9,p.radius));// Prefer an actual glyph hit over a nearby body's generous touch target.
+    // Within overlapping glyphs, depth resolves the visible front body.
+    hits.sort((a,b)=>{const da=Math.hypot(x-a.x,y-a.y),db=Math.hypot(x-b.x,y-b.y),ia=da<=a.radius,ib=db<=b.radius;return Number(ib)-Number(ia)||(ia&&ib?a.depth-b.depth:da-db)});if(hits.length)this.onSelect(hits[0].id);}
+  render(snapshot,options){
+    if(!this.gl||this.lost)return;const gl=this.gl,w=this.canvas.clientWidth,h=this.canvas.clientHeight;if(!w||!h)return;
+    const d=Math.min(2,window.devicePixelRatio||1);if(this.canvas.width!==Math.round(w*d)||this.canvas.height!==Math.round(h*d)){this.canvas.width=Math.round(w*d);this.canvas.height=Math.round(h*d)}
+    gl.viewport(0,0,gl.drawingBufferWidth,gl.drawingBufferHeight);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);if(!snapshot)return;
+    gl.useProgram(this.program);gl.uniform1f(this.uniform.Az,this.az);gl.uniform1f(this.uniform.El,this.el);gl.uniform1f(this.uniform.Distance,this.distance);gl.uniform1f(this.uniform.Aspect,w/h);
+    gl.enableVertexAttribArray(this.position);gl.bindBuffer(gl.ARRAY_BUFFER,this.sphere);gl.vertexAttribPointer(this.position,3,gl.FLOAT,false,0,0);gl.enableVertexAttribArray(this.normal);gl.bindBuffer(gl.ARRAY_BUFFER,this.normals);gl.vertexAttribPointer(this.normal,3,gl.FLOAT,false,0,0);
+    const anchor=options.follow!==null&&options.follow!==undefined?snapshot.bodies.find(b=>b.id===options.follow):options.frame==='sun'?snapshot.bodies[0]:options.frame==='earth'?snapshot.bodies[1]:null;
+    const origin=anchor?[anchor.x_m/149597870700,anchor.y_m/149597870700,anchor.z_m/149597870700]:[0,0,0];
+    for(let i=0;i<3;i++)origin[i]+=this.pan[i];
+    const relative=p=>p.map((v,i)=>v-origin[i]);
+    this.projected=[];const labels=[],halos=[];
+    for(const b of snapshot.bodies){if((b.role==='cloud'&&!options.cloud)||(b.role==='tracked'&&options.tracked===false))continue;const p=relative([b.x_m/149597870700,b.y_m/149597870700,b.z_m/149597870700]),r=b.role==='star'?.15:b.role==='planet'?.085:b.role==='tracked'?.07:.045;
+      let color=b.id===this.selected?[1,.95,.5]:b.role==='star'?[1,.82,.45]:b.role==='planet'?[.32,.75,1]:b.role==='tracked'?[1,.58,.3]:[.50,.82,.87];
+      if(options.colorMode==='speed'&&b.id!==this.selected&&b.role!=='star'){const t=Math.min(1,(snapshot.orbits?.[b.id]?.speed_kms||0)/50);color=[t,.8*(1-t),1-t*.7]}
+      gl.uniform3fv(this.uniform.Center,p);gl.uniform1f(this.uniform.Radius,r);gl.uniform3fv(this.uniform.Color,color);gl.uniform1f(this.uniform.Lit,1);gl.drawArrays(gl.TRIANGLES,0,this.sphereCount);
+      const q={...this.project(p,w,h),id:b.id};q.radius=r*h/q.depth;this.projected.push(q);if(q.depth>.1&&(b.role==='star'||b.role==='tracked'||b.id===this.selected))halos.push({q,color,size:b.role==='star'?100:45});if((options.labels&&b.role!=='cloud')||b.id===this.selected){if(q.depth>.1&&q.x>=0&&q.x<w&&q.y>=0&&q.y<h){const label=document.createElement('span');label.textContent=b.name;label.style.left=(q.x+10)+'px';label.style.top=(q.y-10)+'px';labels.push(label)}}
+    }
+    this.labels.replaceChildren(...labels);
+    const line=(points,color)=>{if(!points.length)return;gl.bindBuffer(gl.ARRAY_BUFFER,this.lines);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(points.flat()),gl.DYNAMIC_DRAW);gl.vertexAttribPointer(this.position,3,gl.FLOAT,false,0,0);gl.disableVertexAttribArray(this.normal);gl.vertexAttrib3f(this.normal,0,0,1);gl.uniform3f(this.uniform.Center,0,0,0);gl.uniform1f(this.uniform.Radius,1);gl.uniform1f(this.uniform.Lit,0);gl.uniform3fv(this.uniform.Color,color);gl.drawArrays(gl.LINE_STRIP,0,points.length)};
+    if(options.shell)for(const r of [snapshot.scenario?.inner_au||.8,snapshot.scenario?.outer_au||4])line(Array.from({length:181},(_,i)=>relative([snapshot.bodies[0].x_m/149597870700+r*Math.cos(i*Math.PI/90),snapshot.bodies[0].y_m/149597870700+r*Math.sin(i*Math.PI/90),snapshot.bodies[0].z_m/149597870700])),[.18,.3,.43]);
+    line(options.trail.map(p=>relative(p.slice(0,3).map(v=>v/149597870700))),[.15,.5,.68]);
+    line((options.forecast||[]).map(p=>relative(p.map(v=>v/149597870700))),[1,.8,.25]);
+    line((options.extraTrails||[]).map(p=>relative(p.map(v=>v/149597870700))),[1,.65,.25]);
+    if(options.launchPreview)line(options.launchPreview.positions_m.map(p=>relative(p.map(v=>v/149597870700))),[1,.78,.38]);
+    if(options.draft){const draft=options.draft,a=relative(draft.start),b=relative(draft.end);
+      // Separated segments are explicitly a geometric draft, not a sampled orbit.
+      for(let i=0;i<40;i+=2)line([a.map((v,k)=>v+(b[k]-v)*i/40),a.map((v,k)=>v+(b[k]-v)*(i+1)/40)],[.36,.74,.64]);
+      const end=relative(draft.velocityEnd);line([a,end],[.55,.96,.82]);
+      const dir=draft.direction,side=[-Math.sin(draft.parameters.azimuth_deg*Math.PI/180),Math.cos(draft.parameters.azimuth_deg*Math.PI/180),0];
+      const length=Math.min(.3,Math.hypot(...end.map((v,i)=>v-a[i]))*.3);
+      line([end.map((v,i)=>v-dir[i]*length+side[i]*length*.4),end,end.map((v,i)=>v-dir[i]*length-side[i]*length*.4)],[.55,.96,.82]);
+      // Start cross makes the exact insertion position visible at every speed.
+      line([a.map((v,i)=>v-side[i]*.09),a.map((v,i)=>v+side[i]*.09)],[.75,1,.9]);
+    }
+    // Decorative screen-space emission; it never changes positions or hit tests.
+    gl.useProgram(this.glowProgram);gl.disable(gl.DEPTH_TEST);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+    gl.bindBuffer(gl.ARRAY_BUFFER,this.glowBuffer);gl.enableVertexAttribArray(this.glowPoint);gl.vertexAttribPointer(this.glowPoint,2,gl.FLOAT,false,0,0);
+    for(const {q,color,size} of halos){gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([q.x/w*2-1,1-q.y/h*2]),gl.DYNAMIC_DRAW);gl.uniform1f(this.glowSize,size*d);gl.uniform3fv(this.glowColor,color);gl.drawArrays(gl.POINTS,0,1)}
+    gl.disable(gl.BLEND);gl.enable(gl.DEPTH_TEST);
+  }
+}

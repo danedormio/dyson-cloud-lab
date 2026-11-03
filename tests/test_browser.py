@@ -1,0 +1,531 @@
+"""Actual Chromium interactions, independent contexts and killed-server recovery."""
+import json
+from pathlib import Path
+import socket
+import subprocess
+import sys
+import time
+import urllib.request
+
+import pytest
+
+from playwright.sync_api import expect
+
+ROOT = Path(__file__).resolve().parents[1]
+ARTIFACTS = ROOT / 'test-artifacts'
+
+
+def test_existing_site_controls_and_packet_registry(chromium):
+    # HTTP matches deployment and works where managed Chromium blocks file://.
+    with socket.socket() as sock:
+        sock.bind(('127.0.0.1', 0))
+        port = sock.getsockname()[1]
+    proc = subprocess.Popen([sys.executable, '-m', 'http.server', str(port), '--bind', '127.0.0.1'],
+                            cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        for _ in range(100):
+            try:
+                urllib.request.urlopen(f'http://127.0.0.1:{port}/index.html', timeout=1).close()
+                break
+            except OSError:
+                time.sleep(.1)
+        page = chromium.new_page(viewport={'width':1440, 'height':900})
+        errors = []
+        page.on('pageerror', lambda e: errors.append(str(e)))
+        page.goto(f'http://127.0.0.1:{port}/index.html')
+        page.locator('#launch').click()
+        assert page.locator('#registry details').count() == 1
+        assert page.locator('#registry details').first.get_attribute('open') is not None
+        page.locator('#shell').uncheck()
+        assert not page.locator('#shell').is_checked()
+        page.locator('#run').click()
+        page.wait_for_timeout(350)
+        assert 'Pause' in page.locator('#run').inner_text()
+        page.locator('#run').click()
+        ARTIFACTS.mkdir(exist_ok=True)
+        page.screenshot(path=str(ARTIFACTS / 'browser-preview.png'), full_page=True)
+        assert not errors, errors
+        page.close()
+    finally:
+        proc.terminate()
+        proc.wait(timeout=5)
+
+
+def test_rebound_frontend_real_api(chromium, backend):
+    page = chromium.new_page(viewport={'width':1440, 'height':900})
+    errors = []
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    expect(page.locator('#state')).to_contain_text('74 bodies')
+    page.locator('#impact').fill('-0.5')
+    page.locator('#launch').click()
+    expect(page.locator('#state')).to_contain_text('75 bodies')
+    assert page.locator('#list details').count() == 1
+    page.locator('#once').click()
+    expect(page.locator('#state')).to_contain_text('t=1.00 days')
+    page.locator('#showShell').uncheck()
+    assert not page.locator('#showShell').is_checked()
+    ARTIFACTS.mkdir(exist_ok=True)
+    page.screenshot(path=str(ARTIFACTS / 'rebound-staging.png'), full_page=True)
+    assert not errors, errors
+    page.close()
+
+
+def state(context, url):
+    response = context.request.get(url + '/api/state')
+    assert response.status == 200
+    return response.json()
+
+
+def download_checkpoint(page):
+    if not page.locator('#save').is_visible():
+        page.locator('#archivePanel > summary').click()
+    with page.expect_download() as result:
+        page.locator('#save').click()
+    return Path(result.value.path()).read_bytes()
+
+
+def restore_checkpoint(page, raw):
+    if not page.locator('#restore').is_visible():
+        page.locator('#archivePanel > summary').click()
+    with page.expect_file_chooser() as result:
+        page.locator('#restore').click()
+    result.value.set_files({'name':'checkpoint.json', 'mimeType':'application/json', 'buffer':raw})
+
+
+def test_two_private_universes_ui_checkpoint_and_crash_recovery(chromium, backend):
+    a, b = chromium.new_context(), chromium.new_context()
+    pages = [a.new_page(), b.new_page()]
+    errors = []
+    for page in pages:
+        page.on('pageerror', lambda e: errors.append(str(e)))
+        page.goto(backend.url)
+        expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    pa, pb = pages
+    assert a.cookies()[0]['value'] != b.cookies()[0]['value']
+    original_b = state(b, backend.url)
+    # UI round-trip for BOTH owners; signed exports may not cross owners.
+    for page, context, other in ((pa,a,b), (pb,b,a)):
+        untouched = state(other, backend.url)
+        page.locator('#launch').click()
+        expect(page.locator('#state')).to_contain_text('75 bodies')
+        page.locator('#once').click()
+        expect(page.locator('#state')).to_contain_text('t=1.00 days')
+        raw = download_checkpoint(page)
+        wanted = state(context, backend.url)
+        denied = other.request.post(backend.url+'/api/restore', data=json.loads(raw))
+        assert denied.status == 403
+        assert state(other, backend.url) == untouched
+        page.locator('#reset').click()
+        expect(page.locator('#state')).to_contain_text('74 bodies')
+        expect(page.locator('#state')).to_contain_text('t=0.00 days')
+        restore_checkpoint(page, raw)
+        expect(page.locator('#state')).to_contain_text('75 bodies')
+        expect(page.locator('#state')).to_contain_text('t=1.00 days')
+        restored = state(context, backend.url)
+        assert {k:v for k,v in restored.items() if k != 'recovery'} == {k:v for k,v in wanted.items() if k != 'recovery'}
+        assert restored['recovery']['checkpoint'] == wanted['recovery']['checkpoint']
+        assert restored['recovery']['revision'] > wanted['recovery']['revision']
+        assert state(other, backend.url) == untouched
+    # Deliberately diverge the worlds before a real process kill.
+    pa.locator('#once').click()
+    expect(pa.locator('#state')).to_contain_text('t=2.00 days')
+    expected_a, expected_b = state(a, backend.url), state(b, backend.url)
+    backend.stop(crash=True)
+    pa.locator('#once').click()
+    expect(pa.locator('#wake')).to_be_visible()
+    expect(pa.locator('#retryWake')).to_be_visible(timeout=15000)
+    ARTIFACTS.mkdir(exist_ok=True)
+    pa.screenshot(path=str(ARTIFACTS/'session-disconnected.png'), full_page=True)
+    backend.start()
+    pa.locator('#retryWake').click()
+    expect(pa.locator('#wake')).to_be_hidden(timeout=15000)
+    pb.reload()
+    expect(pb.locator('#wake')).to_be_hidden(timeout=15000)
+    assert state(a, backend.url) == expected_a
+    assert state(b, backend.url) == expected_b
+    expect(pa.locator('#state')).to_contain_text('t=2.00 days')
+    expect(pb.locator('#state')).to_contain_text('t=1.00 days')
+    pa.screenshot(path=str(ARTIFACTS/'session-a-recovered.png'), full_page=True)
+    pb.screenshot(path=str(ARTIFACTS/'session-b-recovered.png'), full_page=True)
+    # Continued UI mutation after restart still respects isolation.
+    pa.locator('#reset').click()
+    expect(pa.locator('#state')).to_contain_text('74 bodies')
+    assert state(b, backend.url) == expected_b
+    assert not errors, errors
+    a.close()
+    b.close()
+
+
+def test_missing_session_recovers_browser_backup(chromium, backend):
+    import sqlite3
+    a, b = chromium.new_context(), chromium.new_context()
+    pa, pb = a.new_page(), b.new_page()
+    for page in (pa, pb):
+        page.goto(backend.url)
+        expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    pa.locator('#once').click()
+    expect(pa.locator('#state')).to_contain_text('t=1.00 days')
+    expected_a, expected_b = state(a, backend.url), state(b, backend.url)
+    old_cookie = a.cookies()[0]['value']
+    import hashlib
+    with sqlite3.connect(backend.db) as db:
+        db.execute('DELETE FROM sessions WHERE id=?', (hashlib.sha256(old_cookie.encode()).hexdigest(),))
+    pa.reload()
+    expect(pa.locator('#wake')).to_be_hidden(timeout=15000)
+    expect(pa.locator('#state')).to_contain_text('t=1.00 days')
+    assert a.cookies()[0]['value'] != old_cookie
+    assert state(a, backend.url) == expected_a
+    assert state(b, backend.url) == expected_b
+    a.close()
+    b.close()
+
+
+def test_full_redeploy_browser_backups_and_portable_private_file(chromium, backend):
+    a, b = chromium.new_context(), chromium.new_context()
+    pa, pb = a.new_page(), b.new_page()
+    errors = []
+    for page in (pa, pb):
+        page.on('pageerror', lambda e: errors.append(str(e)))
+        page.goto(backend.url)
+        expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+        expect(page.locator('#backupStatus')).to_contain_text('Recovery saved on this browser')
+    pa.locator('#count').fill('8')
+    pa.locator('#reset').click()
+    expect(pa.locator('#state')).to_contain_text('10 bodies')
+    pa.locator('#launch').click()
+    expect(pa.locator('#state')).to_contain_text('11 bodies')
+    for page in (pa, pb):
+        page.locator('#once').click()
+        expect(page.locator('#state')).to_contain_text('t=1.00 days')
+        expect(page.locator('#backupStatus')).to_contain_text('Recovery saved on this browser')
+    pa.locator('#once').click()
+    expect(pa.locator('#state')).to_contain_text('t=2.00 days')
+    # Wait for the client durability acknowledgement, not just rendered state.
+    pa.wait_for_function('!busy')
+    expected_a, expected_b = state(a, backend.url), state(b, backend.url)
+    with pa.expect_download() as download:
+        if not pa.locator('#backup').is_visible():
+            pa.locator('#archivePanel > summary').click()
+        pa.locator('#backup').click()
+    private_file = Path(download.value.path()).read_bytes()
+    backend.stop(crash=True)
+    backend.db.unlink() # No SQLite file is retained on the replacement host.
+    backend.start()
+    a.clear_cookies() # IndexedDB still proves ownership even without a cookie.
+    for page in (pa, pb):
+        page.reload()
+        expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+        expect(page.locator('#backupStatus')).to_contain_text('Recovery saved on this browser')
+    assert state(a, backend.url) == expected_a
+    assert state(b, backend.url) == expected_b
+    expect(pa.locator('#count')).to_have_value('8')
+    ARTIFACTS.mkdir(exist_ok=True)
+    pa.screenshot(path=str(ARTIFACTS/'redeploy-eight-cloud-recovered.png'), full_page=True)
+    # Lose host storage a second time: only the downloaded file can restore
+    # A in the brand-new browser; B independently uses its browser backup.
+    backend.stop(crash=True)
+    backend.db.unlink()
+    backend.start()
+    pb.reload()
+    expect(pb.locator('#wake')).to_be_hidden(timeout=15000)
+    # An actual downloaded private backup also works in a clean browser.
+    imported = chromium.new_context()
+    page = imported.new_page()
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    restore_checkpoint(page, private_file)
+    expect(page.locator('#state')).to_contain_text('11 bodies')
+    expect(page.locator('#state')).to_contain_text('t=2.00 days')
+    page.wait_for_function('!busy')
+    assert state(imported, backend.url) == expected_a
+    assert state(b, backend.url) == expected_b
+    page.locator('#once').click()
+    expect(page.locator('#state')).to_contain_text('t=3.00 days')
+    assert state(b, backend.url) == expected_b
+    assert not errors, errors
+    for context in (a,b,imported):
+        context.close()
+
+
+def test_unconfigured_key_is_visible_and_does_not_promise_redeploy_recovery(chromium, backend):
+    backend.stop()
+    backend.recovery_key = None
+    backend.start()
+    page = chromium.new_page()
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    expect(page.locator('#backupStatus')).to_contain_text('Redeploy recovery unavailable')
+    page.close()
+
+
+def test_late_response_cannot_replace_newer_browser_backup(chromium, backend):
+    page = chromium.new_page()
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    older = page.evaluate('snapshot.recovery')
+    page.locator('#once').click()
+    expect(page.locator('#state')).to_contain_text('t=1.00 days')
+    page.wait_for_function('!busy')
+    page.evaluate('capsule => RecoveryBackup.accept(capsule)', older)
+    assert page.evaluate('(async()=> (await RecoveryBackup.refresh()).capsule.checkpoint.time_s)()') == 86400
+    page.close()
+
+
+def test_browser_storage_failure_is_visible_and_retry_does_not_repeat_step(chromium, backend):
+    page = chromium.new_page()
+    errors = []
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    page.evaluate("""() => {
+      window.realPut = IDBObjectStore.prototype.put;
+      IDBObjectStore.prototype.put = function() {throw new DOMException('simulated storage full','QuotaExceededError')};
+    }""")
+    page.locator('#once').click()
+    expect(page.locator('#backupStatus')).to_contain_text('NOT saved')
+    expect(page.locator('#wake')).to_be_visible()
+    assert page.evaluate('(async()=> (await RecoveryBackup.refresh()).capsule.checkpoint.time_s)()') == 0
+    page.evaluate('() => { IDBObjectStore.prototype.put = window.realPut; }')
+    page.locator('#retryWake').click()
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    expect(page.locator('#state')).to_contain_text('t=1.00 days')
+    expect(page.locator('#backupStatus')).to_contain_text('Recovery saved on this browser')
+    assert page.evaluate('(async()=> (await RecoveryBackup.refresh()).capsule.checkpoint.time_s)()') == 86400
+    assert not errors, errors
+    page.close()
+
+def test_webgl_explorer_camera_selection_and_controls(chromium, backend):
+    page = chromium.new_page(viewport={'width':1440, 'height':900})
+    errors = []
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    page.wait_for_function('explorer.projected?.length === 74')
+    assert page.evaluate('!!explorer.gl && explorer.gl.getError() === 0')
+    # Read actual WebGL pixels; a context alone does not prove bodies rendered.
+    assert page.evaluate('''() => {const gl=explorer.gl,p=new Uint8Array(can.width*can.height*4);gl.readPixels(0,0,can.width,can.height,gl.RGBA,gl.UNSIGNED_BYTE,p);let lit=0;for(let i=0;i<p.length;i+=4)if(p[i]>50&&p[i+1]>50)lit++;return lit>200}''')
+    initial = state(page.context, backend.url)
+    home = page.evaluate('[explorer.az,explorer.el,explorer.distance]')
+    box = page.locator('#view').bounding_box()
+    x,y = box['x']+box['width']/2,box['y']+box['height']/2
+    page.mouse.move(x,y);page.mouse.down();page.mouse.move(x+100,y+70,steps=8);page.mouse.up()
+    assert page.evaluate('[explorer.az,explorer.el,explorer.distance]') != home
+    page.mouse.wheel(0,-150)
+    page.wait_for_function('explorer.distance < 13')
+    # Viewing never mutates backend physical state.
+    assert state(page.context, backend.url) == initial
+    page.locator('#cameraReset').click()
+    assert page.evaluate('[explorer.az,explorer.el,explorer.distance]') == home
+    page.locator('#view').scroll_into_view_if_needed()
+    box = page.locator('#view').bounding_box()
+    earth = page.evaluate('explorer.projected.find(p=>p.id===1)')
+    page.mouse.click(box['x']+earth['x'],box['y']+earth['y'])
+    expect(page.locator('#inspection')).to_contain_text('Earth • planet')
+    expect(page.locator('#inspection')).to_contain_text('Mass: 5.972200e+24 kg')
+    page.locator('#objects').select_option('2')
+    expect(page.locator('#inspection')).to_contain_text('Cloud 1 • cloud')
+    page.locator('#showCloud').uncheck()
+    page.wait_for_function('explorer.projected.length === 2')
+    page.locator('#showCloud').check()
+    page.locator('#rate').select_option('604800')
+    page.locator('#play').click()
+    page.wait_for_function('snapshot.time_s >= 604800')
+    page.locator('#play').click()
+    page.wait_for_function('!busy')
+    paused = state(page.context, backend.url)
+    page.wait_for_timeout(1300)
+    assert state(page.context, backend.url) == paused
+    assert paused['time_s'] % 604800 == 0
+    page.locator('#reset').click()
+    expect(page.locator('#state')).to_contain_text('t=0.00 days')
+    page.wait_for_function('!busy')
+    reset = state(page.context, backend.url)
+    assert reset['bodies'] == initial['bodies']
+    assert not page.evaluate('running')
+    expect(page.locator('#inspection')).to_contain_text('Click a body')
+    ARTIFACTS.mkdir(exist_ok=True)
+    page.locator('#objects').select_option('1')
+    page.screenshot(path=str(ARTIFACTS/'explorer-3d-desktop.png'),full_page=True)
+    page.set_viewport_size({'width':390,'height':844})
+    page.screenshot(path=str(ARTIFACTS/'explorer-3d-mobile.png'),full_page=True)
+    assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+    assert not errors, errors
+    page.close()
+
+
+def test_webgl_unavailable_inspection_remains_usable(chromium, backend):
+    page = chromium.new_page()
+    page.add_init_script('''const get=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type,...args){return type==='webgl'?null:get.call(this,type,...args)}''')
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    expect(page.locator('#renderStatus')).to_contain_text('WebGL unavailable')
+    page.locator('#objects').select_option('1')
+    expect(page.locator('#inspection')).to_contain_text('Earth • planet')
+    page.close()
+
+
+@pytest.mark.parametrize("revision", ["0123456789abcdef0123456789abcdef01234567", None])
+def test_build_indicator_matches_running_server(chromium, backend, revision):
+    backend.stop()
+    backend.build_revision = revision
+    backend.start()
+    page = chromium.new_page(viewport={"width": 1440, "height": 900})
+    errors = []
+    page.on("pageerror", lambda error: errors.append(str(error)))
+    page.goto(backend.url)
+    expect(page.locator("#wake")).to_be_hidden(timeout=15000)
+    health = page.request.get(backend.url + "/health")
+    assert health.ok
+    reported = health.json()["revision"]
+    assert reported == (revision or "unknown")
+    # A changed/hard-coded/truncated UI revision fails this API/UI contract.
+    expect(page.locator("#buildVersion")).to_have_text("Build: " + reported)
+    page.locator("#once").click()
+    expect(page.locator("#state")).to_contain_text("t=1.00 days")
+    expect(page.locator("#buildVersion")).to_have_text("Build: " + reported)
+    ARTIFACTS.mkdir(exist_ok=True)
+    label = "known" if revision else "unknown"
+    page.screenshot(path=str(ARTIFACTS / ("build-version-" + label + ".png")), full_page=True)
+    page.set_viewport_size({"width": 390, "height": 844})
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    assert not errors, errors
+    page.close()
+
+
+def test_playable_workshop_replay_results_and_private_recovery(chromium, backend):
+    page = chromium.new_page(viewport={'width':1440,'height':1050})
+    errors=[]
+    page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    page.locator('#loadPreset').click()
+    page.locator('#replay').click()
+    expect(page.locator('#state')).to_contain_text('35 bodies')
+    expect(page.locator('#experimentReadout')).to_contain_text('unbound')
+    expect(page.locator('#boundaryLedger')).to_contain_text('+1.000e+0 kg')
+    initial=state(page.context,backend.url)
+    assert any(abs(b['z_m'])>1e9 for b in initial['bodies'][2:])
+    page.locator('#month').click()
+    expect(page.locator('#state')).to_contain_text('t=30.00')
+    expect(page.locator('#experimentReadout')).to_contain_text('2 retained samples')
+    page.locator('#pinComparison').click()
+    expect(page.locator('#comparisonReadout')).to_contain_text('t=30.0 d')
+    page.locator('#follow').check()
+    page.locator('#frame').select_option('earth')
+    page.locator('#colorMode').select_option('speed')
+    page.locator('#topView').click()
+    page.locator('#remember').click()
+    page.locator('#speed').fill('10')
+    page.locator('#recall').click()
+    assert page.locator('#speed').input_value()=='40'
+    with page.expect_download() as downloaded:
+        page.locator('#exportResults').click()
+    raw=Path(downloaded.value.path()).read_text()
+    exported=json.loads(raw)
+    assert exported['format']=='dyson-gravity-experiment-v1'
+    assert len(exported['samples'])==2
+    assert len(exported['comparison']['points'])==2
+    first=exported['samples'][0]['objects'][-1]
+    last=exported['samples'][-1]['objects'][-1]
+    final=exported['final']['bodies'][-1]
+    initial_body=initial['bodies'][-1]
+    assert first['momentum_kg_ms']==[initial_body['mass_kg']*initial_body[k] for k in ('vx_ms','vy_ms','vz_ms')]
+    assert last['momentum_kg_ms']==[final['mass_kg']*final[k] for k in ('vx_ms','vy_ms','vz_ms')]
+    expect(page.locator('#experimentReadout')).to_contain_text('Measured Δp')
+    assert exported['scenario']['inclination_deg']==25
+    assert all(word not in raw for word in ('credential','signature','recovery_token','owner'))
+    backup=download_checkpoint(page)
+    page.locator('#replay').click()
+    expect(page.locator('#state')).to_contain_text('t=0.00')
+    assert state(page.context,backend.url)['bodies']==initial['bodies']
+    restore_checkpoint(page,backup)
+    expect(page.locator('#state')).to_contain_text('t=30.00')
+    assert state(page.context,backend.url)['boundary_events']==initial['boundary_events']
+    page.locator('#preset').select_option('bound')
+    page.locator('#loadPreset').click()
+    page.locator('#replay').click()
+    expect(page.locator('#experimentReadout')).to_contain_text('bound state — not proof of capture')
+    ARTIFACTS.mkdir(exist_ok=True)
+    page.evaluate('window.scrollTo(0,0);document.querySelector("aside").scrollTop=0')
+    page.screenshot(path=str(ARTIFACTS/'playable-laboratory-desktop.png'),full_page=True)
+    page.set_viewport_size({'width':390,'height':844})
+    page.wait_for_function('document.querySelector("#experimentChart").width === document.querySelector("#experimentChart").clientWidth')
+    page.screenshot(path=str(ARTIFACTS/'playable-laboratory-mobile.png'),full_page=True)
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    assert not errors,errors
+    page.close()
+
+
+def test_camera_remains_live_during_step_request(chromium, backend):
+    page=chromium.new_page(viewport={'width':1100,'height':850})
+    page.goto(backend.url)
+    expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    page.wait_for_function('explorer.projected?.some(p=>p.id===1)')
+    # Delay transport in the browser without blocking the test driver's event loop.
+    page.evaluate("""() => {const original=window.fetch.bind(window);window.fetch=(...args)=>
+        args[0]==='/api/step'?new Promise(resolve=>setTimeout(()=>resolve(original(...args)),2000)):original(...args)}""")
+    before=page.evaluate('explorer.projected.find(p=>p.id===1).x')
+    page.locator('#once').click(no_wait_after=True)
+    assert page.evaluate('busy')
+    page.locator('#view').press('ArrowRight')
+    page.wait_for_function('(before)=>Math.abs(explorer.projected.find(p=>p.id===1).x-before)>1',arg=before)
+    assert page.evaluate('busy')
+    assert 't=0.00' in page.locator('#state').inner_text()
+    expect(page.locator('#state')).to_contain_text('t=1.00')
+    page.close()
+
+
+def test_prototype_core_parity_observed_in_browser(chromium,backend,monkeypatch):
+    from test_live_skunkworks import observe_parity
+    monkeypatch.setenv('DYSON_TEST_URL',backend.url)
+    context=chromium.new_context(viewport={'width':1400,'height':1000});page=context.new_page()
+    evidence=observe_parity(page)
+    assert evidence['two_year_delta_s']==63115200
+    import math
+    points=evidence['points'];normalized=[[x/math.hypot(*p) for x in p] for p in points]
+    for axis in range(3):
+        assert min(p[axis] for p in normalized)<-.8 and max(p[axis] for p in normalized)>.8
+    ARTIFACTS.mkdir(exist_ok=True)
+    (ARTIFACTS/'prototype-parity-observations.json').write_text(json.dumps(evidence,indent=2))
+    page.screenshot(path=str(ARTIFACTS/'prototype-parity-desktop.png'),full_page=True)
+    page.set_viewport_size({'width':390,'height':844});page.screenshot(path=str(ARTIFACTS/'prototype-parity-mobile.png'),full_page=True)
+    context.close()
+
+
+def test_polished_sandbox_launch_preview_and_interaction(chromium,backend):
+    from sandbox_observer import observe_sandbox
+    page=chromium.new_page(viewport={'width':1440,'height':1000})
+    assert observe_sandbox(page,backend.url)['launched_body_matches_preview']
+    page.close()
+
+
+def test_launch_preview_stale_response_and_failure_preserve_world(chromium,backend):
+    page=chromium.new_page(viewport={'width':1280,'height':900})
+    page.goto(backend.url);expect(page.locator('#wake')).to_be_hidden(timeout=15000)
+    page.wait_for_function('window.sandbox?.draft')
+    original=page.evaluate('JSON.stringify(snapshot.bodies)')
+    page.evaluate('''()=>{const fetchOriginal=window.fetch;window.fetch=async(...args)=>{const result=await fetchOriginal(...args);if(args[0]==='/api/launch-preview')await new Promise(r=>setTimeout(r,1200));return result}}''')
+    page.locator('#traceLaunch').click();page.wait_for_function('laboratory.forecasting')
+    page.locator('#speed').fill('70')
+    page.wait_for_function('!laboratory.forecasting',timeout=30000)
+    assert page.evaluate('window.sandbox.validPreview()') is None
+    assert page.evaluate('JSON.stringify(snapshot.bodies)')==original
+    # Even same-time/same-population replacement must invalidate a forecast.
+    page.evaluate('window.sandbox.preview={world:snapshot,parameters:JSON.stringify(window.sandbox.parameters()),result:{positions_m:[[0,0,0]]}}')
+    assert page.evaluate('window.sandbox.validPreview()') is not None
+    page.evaluate('snapshot={...snapshot,bodies:snapshot.bodies.map((b,i)=>i===2?{...b,mass_kg:b.mass_kg*2}:b)}')
+    assert page.evaluate('window.sandbox.validPreview()') is None
+    # Restore the local observation copy; no server world was changed by this check.
+    page.evaluate('(raw)=>snapshot={...snapshot,bodies:JSON.parse(raw)}',original)
+    page.route('**/api/launch-preview',lambda route:route.fulfill(status=429,content_type='application/json',body='{"detail":"quota"}'))
+    page.locator('#traceLaunch').click()
+    expect(page.locator('#previewStatus')).to_contain_text('allowance reached')
+    assert page.evaluate('JSON.stringify(snapshot.bodies)')==original
+    assert not page.evaluate('laboratory.forecasting')
+    page.locator('#speed').fill('301')
+    assert page.evaluate('window.sandbox.draft') is None
+    expect(page.locator('#previewStatus')).to_contain_text('valid launch values')
+    page.close()
