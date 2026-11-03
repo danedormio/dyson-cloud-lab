@@ -7,6 +7,7 @@ import sqlite3
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field, ConfigDict
 from starlette.datastructures import Headers
@@ -270,6 +271,12 @@ def create_app(store=None):
         if action not in ("launch", "step", "reset"):
             raise HTTPException(404, "Unknown action")
         return run(request, response, lambda w, *_: minimal(w, action, payload), cookie_name=minimal_cookie)
+
+    app.mount("/lab-assets", StaticFiles(directory=Path(__file__).parent / "static"), name="local-laboratory-assets")
+
+    @app.get("/simple-legacy")
+    def previous_minimal_frontend():
+        return FileResponse(Path(__file__).with_name("legacy-simple.html"), headers={"Cache-Control":"no-store"})
 
     @app.get("/simple")
     def minimal_frontend():

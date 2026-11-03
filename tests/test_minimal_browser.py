@@ -6,7 +6,7 @@ import math
 def test_minimal_launch_controls_motion_and_mobile(backend,chromium):
     page=chromium.new_page(viewport={'width':1440,'height':960})
     errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-    page.goto(backend.url+'/simple')
+    page.goto(backend.url+'/simple-legacy')
     page.wait_for_function('!!window.cloudView?.world')
     page.wait_for_timeout(600)
     initial=page.evaluate('window.cloudView.world')
@@ -56,7 +56,7 @@ def test_minimal_launch_controls_motion_and_mobile(backend,chromium):
 
 def test_minimal_scene_resumes_after_server_storage_loss(backend,chromium):
     page=chromium.new_page(viewport={'width':1200,'height':900})
-    page.goto(backend.url+'/simple')
+    page.goto(backend.url+'/simple-legacy')
     page.wait_for_function('!!window.cloudView?.world')
     page.wait_for_timeout(600)
     page.click('#launch');page.wait_for_function('window.cloudView.world.packet!==null')
@@ -76,7 +76,7 @@ def test_minimal_scene_resumes_after_server_storage_loss(backend,chromium):
 
 def test_cloud_volume_paused_start_rate_and_camera(backend,chromium):
     page=chromium.new_page(viewport={'width':1440,'height':960})
-    page.goto(backend.url+'/simple')
+    page.goto(backend.url+'/simple-legacy')
     page.wait_for_function('!!window.cloudView?.world')
     initial=page.evaluate('window.cloudView.world')
     assert initial['time']==0
@@ -114,7 +114,7 @@ def test_playback_blends_acknowledged_samples_and_pause_is_exact(backend,chromiu
       if(String(args[0]).endsWith('/api/simple/step')){
         steps++;await new Promise(r=>setTimeout(r,steps===1?900:2500));
       }return response;};""")
-    page.goto(backend.url+'/simple');page.wait_for_function('!!window.cloudView?.world')
+    page.goto(backend.url+'/simple-legacy');page.wait_for_function('!!window.cloudView?.world')
     page.click('#play');page.wait_for_function('window.cloudView.world.time>0')
     first=page.evaluate('({t:cloudView.renderTime,physics:cloudView.world.time,b:cloudView.renderBodies[1]})')
     assert 0<=first['t']<first['physics']
@@ -130,7 +130,7 @@ def test_playback_blends_acknowledged_samples_and_pause_is_exact(backend,chromiu
 
 def test_3d_aim_orbit_inspection_recovery_and_mobile_launch(backend,chromium):
     page=chromium.new_page(viewport={'width':1440,'height':960})
-    page.goto(backend.url+'/simple');page.wait_for_function('!!window.cloudView?.world')
+    page.goto(backend.url+'/simple-legacy');page.wait_for_function('!!window.cloudView?.world')
     requests=[];page.on('request',lambda r:requests.append(r.url) if '/api/simple' in r.url else None)
     before=page.locator('canvas').screenshot()
     page.locator('.aim3d summary').click()
@@ -166,7 +166,7 @@ def test_3d_aim_orbit_inspection_recovery_and_mobile_launch(backend,chromium):
 
 def test_reset_clears_legacy_arrival_notice(backend,chromium):
     page=chromium.new_page()
-    page.goto(backend.url+'/simple');page.wait_for_function('!!cloudView?.world')
+    page.goto(backend.url+'/simple-legacy');page.wait_for_function('!!cloudView?.world')
     page.click('#launch');page.wait_for_function('!!cloudView.world.packet')
     def legacy_metadata(route):
         response=route.fetch();state=response.json();state['launch_settings']=None

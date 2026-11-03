@@ -26,7 +26,7 @@ def test_old_workbench_recovery_cannot_block_minimal_startup(backend,chromium):
     page.goto(backend.url+'/health')
     seed(page,'dyson-private-backups',OLD_RECORD)
     page.context.add_cookies([dict(name='dyson_session',value='A'*43,url=backend.url+'/api')])
-    page.goto(backend.url+'/simple')
+    page.goto(backend.url+'/simple-legacy')
     try:
         page.wait_for_function('!!window.cloudView?.world',timeout=6000)
     except Exception:
@@ -55,7 +55,7 @@ def test_retry_reconnects_after_startup_service_failure(backend,chromium):
         else:
             attempts.append('retried');route.continue_()
     page.route('**/api/simple/session',fail_once)
-    page.goto(backend.url+'/simple')
+    page.goto(backend.url+'/simple-legacy')
     page.wait_for_function('document.querySelector("#play").textContent==="Retry connection"')
     assert page.locator('#play').is_enabled() and page.locator('#reset').is_enabled()
     assert page.locator('#launch').is_disabled()
@@ -73,7 +73,7 @@ def test_start_fresh_archives_unrecoverable_scene_without_touching_old_work(back
     seed(page,'dyson-private-backups',OLD_RECORD)
     seed(page,'dyson-first-light-v13-backups',OLD_RECORD)
     page.context.add_cookies([dict(name='dyson_simple_session_v13',value='A'*43,url=backend.url+'/api')])
-    page.goto(backend.url+'/simple')
+    page.goto(backend.url+'/simple-legacy')
     page.wait_for_function('document.querySelector("#play").textContent==="Retry connection"')
     assert page.locator('#reset').inner_text()=='Start fresh'
     page.click('#reset');page.wait_for_function('!!window.cloudView?.world')
@@ -92,7 +92,7 @@ def test_start_fresh_archives_unrecoverable_scene_without_touching_old_work(back
 def test_blocked_browser_storage_still_allows_temporary_physics_session(backend,chromium):
     page=chromium.new_page()
     page.add_init_script("IDBFactory.prototype.open=()=>{throw new DOMException('Storage blocked','SecurityError')}")
-    page.goto(backend.url+'/simple')
+    page.goto(backend.url+'/simple-legacy')
     page.wait_for_function('!!window.cloudView?.world')
     page.click('#play');page.wait_for_timeout(300)
     assert 'temporary session' in page.locator('#connection').inner_text()
@@ -109,7 +109,7 @@ def test_retry_reads_committed_state_after_lost_step_response(backend,chromium):
             result=route.fetch();committed.append(result.json()['time']);route.abort()
         else:route.continue_()
     page.route('**/api/simple/step',lose_once)
-    page.goto(backend.url+'/simple')
+    page.goto(backend.url+'/simple-legacy')
     page.wait_for_function('!!window.cloudView?.world')
     page.click('#play')
     page.wait_for_function('document.querySelector("#play").textContent==="Retry connection"')
@@ -131,7 +131,7 @@ def test_full_storage_fresh_start_keeps_original_and_runs_temporarily(backend,ch
       IDBObjectStore.prototype.put=function(value,key){
         if(typeof key==='string'&&key.startsWith('archived-'))throw new DOMException('Full','QuotaExceededError');
         return originalPut.call(this,value,key)}''')
-    page.goto(backend.url+'/simple')
+    page.goto(backend.url+'/simple-legacy')
     page.wait_for_function('document.querySelector("#play").textContent==="Retry connection"')
     page.click('#reset');page.wait_for_function('!!window.cloudView?.world')
     page.click('#play');page.wait_for_timeout(300)
