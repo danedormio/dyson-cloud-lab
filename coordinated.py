@@ -225,7 +225,7 @@ class CoordinatedCloud:
                 self.bound_since=None; status='Passing through' if dot(r,v)<0 else 'Departing'
             if radius<.05*AU: status='Inside stellar exclusion region'
             packet=dict(speed=norm(v)/1000,radius=radius/AU,specific_energy=energy,eccentricity=ecc,status=status,
-                        periapsis=h*h/mu/(1+ecc)/AU,bound_days=(self.sim.t-self.bound_since)/DAY if self.bound_since is not None else 0)
+                        periapsis=h*h/mu/(1+ecc)/AU,apoapsis=(-mu/(2*energy)*(1+ecc)/AU if energy<0 else None),bound_days=(self.sim.t-self.bound_since)/DAY if self.bound_since is not None else 0)
             self.mode=self.plan if self.sim.t>=self.plan_time else 'Plan in transit'
         if self.halted:
             self.mode='Stellar approach limit'

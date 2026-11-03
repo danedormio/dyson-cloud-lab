@@ -150,7 +150,7 @@ function inspect(){
   let text='Mass: '+b.mass.toExponential(2)+' kg<br>Speed: '+(Math.hypot(b.vx,b.vy,b.vz||0)/1000).toFixed(2)+' km/s';
   if(b.energy!==null)text+='<br>Electrical store: '+(100*b.energy).toFixed(2)+'%<br>Heat / capacity: '+(100*b.heat).toFixed(3)+'%<br>Actuation: '+(100*b.active).toFixed(0)+'%';
   if(selected>48&&world.packet){const p=world.packet;
-    const apo=p.specific_energy<0?p.periapsis*(1+p.eccentricity)/(1-p.eccentricity):Infinity;
+    const apo=p.apoapsis??Infinity;
     text+='<br><br>'+p.status+'<br>Closest approach: '+p.periapsis.toFixed(3)+' AU<br>Farthest approach: '+(Number.isFinite(apo)?apo.toFixed(3)+' AU':'unbounded')+'<br>Eccentricity: '+p.eccentricity.toFixed(3)+'<br>Orbital energy: '+p.specific_energy.toExponential(3)+' J/kg<br><br>A bound orbit can still be very elongated. Binding alone does not establish a stable parking orbit.';
   }
   $('selectedstate').innerHTML=text;

@@ -202,3 +202,9 @@ rendered as a link to the packet even when no packet interaction occurred. The
 force and accounting code is unchanged; separate packet activity and neighbor
 pairs now drive those displays and survive recovery. This correction prevents
 visual activity from being mistaken for an actual long-range interaction.
+
+Apoapsis is computed from orbital energy and eccentricity in the backend,
+including a radial bound orbit with zero angular momentum. The alternative
+periapsis×(1+e)/(1−e) has a removable singularity at e=1 and would falsely show
+an unbounded farthest approach for that bound trajectory. A regression covers
+this case; it changes the diagnostic, not propagation or control.

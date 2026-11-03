@@ -169,3 +169,12 @@ def test_display_links_distinguish_packet_and_neighbor_coupling():
     assert w.state()['neighbor_links']==[[1,j]]
     restored=CoordinatedCloud(w.snapshot())
     assert restored.state()['links']==[1] and restored.state()['neighbor_links']==[[1,j]]
+
+
+def test_radial_bound_orbit_has_finite_apoapsis():
+    w=CoordinatedCloud();w.launch();sun=w.sim.particles[0];p=w.sim.particles[-1]
+    p.x,p.y,p.z=sun.x+AU,sun.y,sun.z
+    p.vx,p.vy,p.vz=sun.vx-1000,sun.vy,sun.vz
+    orbit=w.state()['packet']
+    assert orbit['specific_energy']<0 and orbit['eccentricity']==1
+    assert orbit['periapsis']==0 and .99<orbit['apoapsis']<1.01
